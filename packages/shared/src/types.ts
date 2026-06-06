@@ -1,5 +1,8 @@
+export const VALID_ACTION_TYPES = ['click', 'type', 'scroll', 'extract', 'hover', 'nativeClick', 'nativeType'] as const;
+export type AutomationActionType = typeof VALID_ACTION_TYPES[number];
+
 export interface AutomationAction {
-  type: 'click' | 'type' | 'scroll' | 'extract';
+  type: AutomationActionType;
   selector: string;
   value?: string;
 }
