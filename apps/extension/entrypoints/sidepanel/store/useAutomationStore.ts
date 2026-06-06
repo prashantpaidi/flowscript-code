@@ -91,15 +91,17 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     if (get().isRunning) return;
 
     try {
-      const tab = await queryActiveTab();
       set({
         logs: [],
         errorMessage: '',
         isRunning: true,
         status: 'running',
         activeTab: 'console',
-        targetTabId: tab.id
+        targetTabId: undefined
       });
+
+      const tab = await queryActiveTab();
+      set({ targetTabId: tab.id });
 
       iframeEl?.contentWindow?.postMessage({
         type: MESSAGE_TYPES.RUN_CODE,
