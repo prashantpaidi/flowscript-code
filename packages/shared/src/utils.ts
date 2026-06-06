@@ -1,4 +1,4 @@
-import { AutomationAction } from './types.js';
+import { AutomationAction, VALID_ACTION_TYPES } from './types.js';
 
 /**
  * Validates whether the given object is a valid AutomationAction.
@@ -6,8 +6,7 @@ import { AutomationAction } from './types.js';
 export function isValidAction(action: any): action is AutomationAction {
   if (!action || typeof action !== 'object') return false;
   
-  const validTypes = ['click', 'type', 'scroll', 'extract', 'hover', 'nativeClick', 'nativeType'];
-  const hasValidType = validTypes.includes(action.type);
+  const hasValidType = (VALID_ACTION_TYPES as readonly string[]).includes(action.type);
   const hasValidSelector = typeof action.selector === 'string' && action.selector.trim().length > 0;
   
   if (!hasValidType || !hasValidSelector) return false;

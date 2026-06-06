@@ -20,14 +20,24 @@ export async function getPreferences(): Promise<UserPreferences> {
   return value!;
 }
 
+let updateQueue: Promise<any> = Promise.resolve();
+
 /**
  * Updates user preferences in browser storage.
  */
 export async function updatePreferences(updates: Partial<UserPreferences>): Promise<UserPreferences> {
-  const current = await getPreferences();
-  const updated = { ...current, ...updates };
-  await preferenceStorage.setValue(updated);
-  return updated;
+  return new Promise((resolve, reject) => {
+    updateQueue = updateQueue.then(async () => {
+      try {
+        const current = await getPreferences();
+        const updated = { ...current, ...updates };
+        await preferenceStorage.setValue(updated);
+        resolve(updated);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  });
 }
 
 const scriptStorage = storage.defineItem<string>('local:automation_script', {

@@ -103,7 +103,7 @@ The Monaco Editor exposes several asynchronous APIs bound dynamically to the san
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
+- [Node.js](https://nodejs.org/) (v20+)
 - [pnpm](https://pnpm.io/) (v9+)
 
 ### Installation

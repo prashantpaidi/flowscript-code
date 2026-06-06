@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { MESSAGE_TYPES } from '@flowscript/shared';
 import { getSavedScript, saveScript } from '@/utils/storage';
-import { executeActionOnTab } from '@/utils/automation-service';
+import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
 
 export interface ConsoleLog {
   type: 'log' | 'error' | 'step';
@@ -16,6 +16,7 @@ export interface AutomationState {
   status: 'idle' | 'running' | 'success' | 'error';
   errorMessage: string;
   activeTab: string;
+  targetTabId?: number;
   
   // Actions
   initStore: () => Promise<void>;
@@ -24,7 +25,7 @@ export interface AutomationState {
   clearConsole: () => void;
   addLog: (log: ConsoleLog) => void;
   setExecutionComplete: (payload: { success: boolean; error?: string }) => void;
-  runScript: (iframeEl: HTMLIFrameElement | null) => void;
+  runScript: (iframeEl: HTMLIFrameElement | null) => Promise<void>;
   stopScript: (iframeEl: HTMLIFrameElement | null) => void;
   handleActionRequest: (payload: { id: number; action: any }, iframeEl: HTMLIFrameElement | null) => Promise<void>;
 }
@@ -36,6 +37,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   status: 'idle',
   errorMessage: '',
   activeTab: 'editor',
+  targetTabId: undefined,
 
   initStore: async () => {
     const saved = await getSavedScript();
@@ -46,7 +48,14 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   setCode: (code: string) => {
     set({ code });
-    saveScript(code);
+    saveScript(code).catch((err) => {
+      console.error('Failed to save script to storage:', err);
+      get().addLog({
+        type: 'error',
+        message: `Storage error: Failed to save script changes: ${err?.message || String(err)}`,
+        timestamp: Date.now()
+      });
+    });
   },
 
   setActiveTab: (activeTab: string) => {
@@ -69,28 +78,45 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   },
 
   setExecutionComplete: ({ success, error }) => {
+    if (!get().isRunning) return;
     set({
       isRunning: false,
       status: success ? 'success' : 'error',
-      errorMessage: error || ''
+      errorMessage: error || '',
+      targetTabId: undefined
     });
   },
 
-  runScript: (iframeEl) => {
+  runScript: async (iframeEl) => {
     if (get().isRunning) return;
 
-    set({
-      logs: [],
-      errorMessage: '',
-      isRunning: true,
-      status: 'running',
-      activeTab: 'console'
-    });
+    try {
+      const tab = await queryActiveTab();
+      set({
+        logs: [],
+        errorMessage: '',
+        isRunning: true,
+        status: 'running',
+        activeTab: 'console',
+        targetTabId: tab.id
+      });
 
-    iframeEl?.contentWindow?.postMessage({
-      type: MESSAGE_TYPES.RUN_CODE,
-      payload: { code: get().code }
-    }, '*');
+      iframeEl?.contentWindow?.postMessage({
+        type: MESSAGE_TYPES.RUN_CODE,
+        payload: { code: get().code }
+      }, '*');
+    } catch (error: any) {
+      set({
+        isRunning: false,
+        status: 'error',
+        errorMessage: error?.message || 'No active tab found to automate.'
+      });
+      get().addLog({
+        type: 'error',
+        message: `Failed to start: ${error?.message || String(error)}`,
+        timestamp: Date.now()
+      });
+    }
   },
 
   stopScript: (iframeEl) => {
@@ -104,6 +130,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     set((state) => ({
       isRunning: false,
       status: 'idle',
+      targetTabId: undefined,
       logs: [...state.logs, {
         type: 'error',
         message: 'Execution stopped by user.',
@@ -113,21 +140,27 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   },
 
   handleActionRequest: async ({ id, action }, iframeEl) => {
+    if (!get().isRunning) return;
     try {
       const primaryColor = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || 'hsl(0 0% 98%)';
-      const response = await executeActionOnTab(id, action, primaryColor);
+      const targetTabId = get().targetTabId;
+      const response = await executeActionOnTab(id, action, primaryColor, targetTabId);
 
-      // Send action response back to sandbox
-      iframeEl?.contentWindow?.postMessage({
-        type: MESSAGE_TYPES.ACTION_RESPONSE,
-        payload: response
-      }, '*');
+      if (get().isRunning) {
+        // Send action response back to sandbox
+        iframeEl?.contentWindow?.postMessage({
+          type: MESSAGE_TYPES.ACTION_RESPONSE,
+          payload: response
+        }, '*');
+      }
     } catch (error: any) {
-      // Return failure to sandbox so the promise rejects
-      iframeEl?.contentWindow?.postMessage({
-        type: MESSAGE_TYPES.ACTION_RESPONSE,
-        payload: { id, success: false, error: error?.message || 'Failed to communicate with webpage.' }
-      }, '*');
+      if (get().isRunning) {
+        // Return failure to sandbox so the promise rejects
+        iframeEl?.contentWindow?.postMessage({
+          type: MESSAGE_TYPES.ACTION_RESPONSE,
+          payload: { id, success: false, error: error?.message || 'Failed to communicate with webpage.' }
+        }, '*');
+      }
     }
   }
 }));

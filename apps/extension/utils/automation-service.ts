@@ -13,16 +13,21 @@ export async function queryActiveTab(): Promise<browser.tabs.Tab> {
 }
 
 /**
- * Sends a message to the active tab's content script to execute a given automation action.
+ * Sends a message to the specified tab's content script to execute a given automation action.
  */
 export async function executeActionOnTab(
   id: number,
   action: any,
-  primaryColor: string = 'hsl(0 0% 98%)'
+  primaryColor: string = 'hsl(0 0% 98%)',
+  targetTabId?: number
 ): Promise<any> {
-  const tab = await queryActiveTab();
+  const tabId = targetTabId !== undefined ? targetTabId : (await queryActiveTab()).id;
   
-  const response = await browser.tabs.sendMessage(tab.id!, {
+  if (tabId === undefined) {
+    throw new Error('Target tab is not defined.');
+  }
+
+  const response = await browser.tabs.sendMessage(tabId, {
     source: 'dashboard',
     type: MESSAGE_TYPES.EXECUTE_ACTION,
     payload: { id, action, primaryColor }

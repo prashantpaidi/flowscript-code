@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   manifest: {
-    permissions: ['sidePanel', 'activeTab', 'tabs'],
+    permissions: ['sidePanel', 'activeTab', 'tabs', 'debugger'],
     action: {},
   },
   vite: () => ({
