@@ -1,5 +1,5 @@
 export interface AutomationAction {
-  type: 'click' | 'type' | 'scroll' | 'extract';
+  type: 'click' | 'type' | 'scroll' | 'extract' | 'hover' | 'nativeClick' | 'nativeType';
   selector: string;
   value?: string;
 }
