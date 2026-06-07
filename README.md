@@ -99,6 +99,67 @@ The Monaco Editor exposes several asynchronous APIs bound dynamically to the san
 
 ---
 
+## ⚡ Keyboard Hotkey & Text Expander Triggers
+
+FlowScript includes a built-in event routing system that triggers specific automation scripts in response to real-time user input on any webpage. You can register triggers by writing `@trigger` annotations directly above your JavaScript/TypeScript functions in the editor.
+
+### 🔌 How Triggers Work
+
+1. **Annotation Parsing**: When your script is saved, FlowScript dynamically parses all `@trigger` annotations.
+2. **Global Monitoring**: The extension's Content Script hooks into keydown and input events across all open browser tabs to detect matching triggers.
+3. **Execution**: Upon a match, a message is routed through the Background Service Worker to the Sidepanel, where the target function is compiled and executed in the Sandbox.
+
+---
+
+### ⌨️ 1. Hotkey Triggers
+
+Execute functions instantly when key combinations are pressed on any web page.
+
+* **Annotation Format**: `// @trigger('hotkey', 'combination')`
+* **Supported Modifiers**: `ctrl`, `shift`, `alt`, `meta` (Win/Cmd)
+* **Example**:
+  ```javascript
+  // @trigger('hotkey', 'ctrl+shift+k')
+  async function fillLoginForm() {
+    console.log('Hotkey Ctrl+Shift+K pressed!');
+    await type('#username', 'test_user');
+    await type('#password', 'secret123');
+    await click('#submit');
+  }
+  ```
+
+---
+
+### 📝 2. Text Expander Triggers
+
+Type a short prefix in any input field or textarea to auto-expand it and simultaneously run associated automation logic.
+
+* **Annotation Format**: `// @trigger('expander', 'shortcut', 'expanded text')`
+* **Example**:
+  ```javascript
+  // @trigger('expander', ';;tq', 'Thank you for your prompt response! Let me know if you need anything else.')
+  async function logAutoResponse() {
+    console.log('Text expanded and logged!');
+  }
+  ```
+
+---
+
+### 🛡️ Validation and Safety
+
+FlowScript validates all active triggers in real-time. If there is a validation issue, a warning card is displayed at the top of the **Editor** and **Triggers** tabs:
+
+| Conflict Type | Description |
+| :--- | :--- |
+| **Duplicate Function** | The same function is registered to multiple triggers. |
+| **Hotkey Collision** | The same hotkey combination is assigned to more than one function. |
+| **Expander Collision** | The same expander shortcut is assigned to more than one function. |
+
+> [!NOTE]
+> Trigger annotations are automatically stripped from the script before execution (via `cleanScriptCode`) so that they don't throw syntax or execution errors in the Sandbox.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites

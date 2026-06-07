@@ -2,12 +2,14 @@ import React, { useRef } from 'react';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MousePointerClick, Keyboard, Scroll, Clock, Terminal } from 'lucide-react';
+import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 export function EditorTab() {
   const code = useAutomationStore((s) => s.code);
   const setCode = useAutomationStore((s) => s.setCode);
+  const validationError = useAutomationStore((s) => s.validationError);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +42,15 @@ export function EditorTab() {
 
   return (
     <div className="h-full flex flex-col gap-3.5 m-0 animate-in fade-in duration-200">
+      {validationError && (
+        <Alert variant="destructive" className="py-2.5">
+          <AlertCircle className="size-4" />
+          <AlertTitle className="text-xs font-bold">Trigger Validation Error</AlertTitle>
+          <AlertDescription className="text-[10px] mt-0.5 leading-relaxed">
+            {validationError}
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="flex-1 flex border border-input rounded-md bg-card focus-within:ring-1 focus-within:ring-ring focus-within:border-ring overflow-hidden min-h-0">
         {/* Line Numbers column */}
         <div 

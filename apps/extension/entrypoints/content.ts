@@ -1,10 +1,15 @@
 import { MESSAGE_TYPES } from '@flowscript/shared';
 import { performNativeClick, performNativeType } from '@/utils/debugger-actions';
+import { getSavedTriggers, watchTriggers } from '@/utils/storage';
+import { TriggerManager } from '@/utils/trigger-manager';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
     console.log('FlowScript content script initialized.');
+
+    // Initialize triggers
+    initTriggers();
 
     // Listen for execution commands from the sidepanel
     browser.runtime.onMessage.addListener((message, sender) => {
@@ -100,3 +105,35 @@ async function flashElement(element: HTMLElement, primaryColor: string = 'hsl(0 
   await new Promise((resolve) => setTimeout(resolve, 150));
   element.style.transition = originalTransition;
 }
+
+let triggerManager: TriggerManager | null = null;
+
+async function initTriggers() {
+  triggerManager = new TriggerManager(executeTriggerFunction);
+  triggerManager.setup();
+
+  try {
+    const triggers = await getSavedTriggers();
+    if (triggers) {
+      triggerManager.update(triggers);
+    }
+  } catch (error) {
+    console.error('FlowScript: Failed to initialize triggers:', error);
+  }
+
+  watchTriggers((newTriggers) => {
+    triggerManager?.update(newTriggers || []);
+  });
+}
+
+async function executeTriggerFunction(functionName: string) {
+  console.log(`FlowScript: Firing trigger for function: ${functionName}()`);
+  browser.runtime.sendMessage({
+    source: 'content',
+    type: 'RUN_TRIGGER_FUNCTION',
+    payload: { functionName }
+  }).catch((err) => {
+    console.warn('FlowScript: Could not invoke trigger function. Is the sidepanel open?', err);
+  });
+}
+

@@ -1,7 +1,11 @@
-import { MESSAGE_TYPES, sleep } from '@flowscript/shared';
+import { MESSAGE_TYPES, sleep, cleanScriptCode, parseTriggers } from '@flowscript/shared';
 
 const pendingActions = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
 let actionIdCounter = 0;
+
+// Persistent compilation cache for trigger state
+let lastCompiledCode: string | null = null;
+let compiledFunctions: Record<string, Function> = {};
 
 // Dynamic Action Registry defining scalable commands
 interface ActionRegistryItem {
@@ -113,6 +117,10 @@ window.addEventListener('message', async (event) => {
     try {
       logToParent('log', 'Starting execution...');
       
+      // Clear compile cache on script manual start
+      lastCompiledCode = null;
+      compiledFunctions = {};
+      
       // Wrap code in async function so await is allowed
       const executionFunction = new Function(`
         return (async () => {
@@ -131,6 +139,70 @@ window.addEventListener('message', async (event) => {
     } catch (err: any) {
       const errMsg = err?.message || String(err);
       logToParent('error', `Execution failed: ${errMsg}`);
+      window.parent.postMessage({
+        source: 'sandbox',
+        type: MESSAGE_TYPES.EXECUTION_COMPLETE,
+        payload: { success: false, error: errMsg }
+      }, '*');
+    }
+  } else if (data.type === 'RUN_TRIGGER') {
+    const { code, functionName } = data.payload;
+    try {
+      logToParent('log', `Executing trigger function: ${functionName}...`);
+      
+      if (code !== lastCompiledCode) {
+        logToParent('log', 'Compiling script and caching trigger functions...');
+        const cleanCode = cleanScriptCode(code);
+        const triggers = parseTriggers(code);
+        const uniqueFuncNames = Array.from(new Set(triggers.map(t => t.functionName)));
+        
+        const returnStatement = `return {
+          ${uniqueFuncNames.map(name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined`).join(',\n')}
+        };`;
+
+        const actionNames = [...ACTION_REGISTRY.map(act => act.name), 'sleep'];
+        const origActions: Record<string, any> = {};
+        
+        // Neutralise top-level actions dynamically during compilation
+        for (const name of actionNames) {
+          origActions[name] = (globalThis as any)[name];
+          (globalThis as any)[name] = async () => {};
+        }
+
+        try {
+          const executionFunction = new Function(`
+            return (async () => {
+              ${cleanCode}
+              ${returnStatement}
+            })();
+          `);
+          
+          compiledFunctions = await executionFunction();
+        } finally {
+          // Restore action implementations immediately after compilation
+          for (const name of actionNames) {
+            (globalThis as any)[name] = origActions[name];
+          }
+        }
+        lastCompiledCode = code;
+      }
+
+      const targetFn = compiledFunctions[functionName];
+      if (typeof targetFn === 'function') {
+        await targetFn();
+      } else {
+        throw new Error(`Function '${functionName}' is not defined or registered as a trigger in the script.`);
+      }
+      
+      logToParent('log', `Trigger function '${functionName}' completed.`);
+      window.parent.postMessage({
+        source: 'sandbox',
+        type: MESSAGE_TYPES.EXECUTION_COMPLETE,
+        payload: { success: true }
+      }, '*');
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      logToParent('error', `Trigger function '${functionName}' failed: ${errMsg}`);
       window.parent.postMessage({
         source: 'sandbox',
         type: MESSAGE_TYPES.EXECUTION_COMPLETE,
