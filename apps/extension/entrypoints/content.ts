@@ -2,6 +2,7 @@ import { MESSAGE_TYPES } from '@flowscript/shared';
 import { performNativeClick, performNativeType } from '@/utils/debugger-actions';
 import { getSavedTriggers, watchTriggers } from '@/utils/storage';
 import { TriggerManager } from '@/utils/trigger-manager';
+import { generatePrimarySelector, generateFallbackSelector } from '@/utils/selector-generator';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -13,9 +14,17 @@ export default defineContentScript({
 
     // Listen for execution commands from the sidepanel
     browser.runtime.onMessage.addListener((message, sender) => {
-      if (message && message.source === 'dashboard' && message.type === MESSAGE_TYPES.EXECUTE_ACTION) {
-        const { id, action, primaryColor } = message.payload;
-        return executeAction(id, action, primaryColor);
+      if (!message) return;
+
+      if (message.source === 'dashboard') {
+        if (message.type === MESSAGE_TYPES.EXECUTE_ACTION) {
+          const { id, action, primaryColor } = message.payload;
+          return executeAction(id, action, primaryColor);
+        } else if (message.type === MESSAGE_TYPES.START_DOM_SELECT) {
+          startDomSelector();
+        } else if (message.type === MESSAGE_TYPES.STOP_DOM_SELECT) {
+          cleanupDomSelector();
+        }
       }
     });
   },
@@ -232,5 +241,156 @@ async function executeTriggerFunction(functionName: string) {
   }).catch((err) => {
     console.warn('FlowScript: Could not invoke trigger function. Is the sidepanel open?', err);
   });
+}
+
+let activeOverlay: HTMLDivElement | null = null;
+let activeBadge: HTMLDivElement | null = null;
+let inspecting = false;
+
+function startDomSelector() {
+  if (inspecting) {
+    cleanupDomSelector();
+  }
+  inspecting = true;
+
+  // Create highlight overlay with beautiful modern styling (blue overlay with subtle glow)
+  activeOverlay = document.createElement('div');
+  activeOverlay.style.position = 'fixed';
+  activeOverlay.style.pointerEvents = 'none';
+  activeOverlay.style.zIndex = '2147483647';
+  activeOverlay.style.border = '2px solid #0ea5e9'; // sky-500
+  activeOverlay.style.background = 'rgba(14, 165, 233, 0.12)';
+  activeOverlay.style.boxShadow = '0 0 12px rgba(14, 165, 233, 0.4)';
+  activeOverlay.style.borderRadius = '4px';
+  activeOverlay.style.transition = 'all 0.1s cubic-bezier(0.16, 1, 0.3, 1)';
+  activeOverlay.style.display = 'none';
+  document.body.appendChild(activeOverlay);
+
+  // Create floating info badge
+  activeBadge = document.createElement('div');
+  activeBadge.style.position = 'fixed';
+  activeBadge.style.pointerEvents = 'none';
+  activeBadge.style.zIndex = '2147483647';
+  activeBadge.style.background = '#0f172a'; // slate-900
+  activeBadge.style.color = '#f8fafc'; // slate-50
+  activeBadge.style.padding = '4px 8px';
+  activeBadge.style.borderRadius = '4px';
+  activeBadge.style.fontFamily = 'monospace';
+  activeBadge.style.fontSize = '10px';
+  activeBadge.style.fontWeight = 'bold';
+  activeBadge.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+  activeBadge.style.border = '1px solid #334155';
+  activeBadge.style.whiteSpace = 'nowrap';
+  activeBadge.style.transition = 'all 0.1s cubic-bezier(0.16, 1, 0.3, 1)';
+  activeBadge.style.display = 'none';
+  document.body.appendChild(activeBadge);
+
+  // Event handlers
+  document.addEventListener('mouseover', handleMouseOver, true);
+  document.addEventListener('click', handleSelectClick, true);
+  document.addEventListener('keydown', handleKeyDown, true);
+}
+
+function cleanupDomSelector() {
+  inspecting = false;
+  
+  if (activeOverlay && activeOverlay.parentNode) {
+    activeOverlay.parentNode.removeChild(activeOverlay);
+  }
+  activeOverlay = null;
+
+  if (activeBadge && activeBadge.parentNode) {
+    activeBadge.parentNode.removeChild(activeBadge);
+  }
+  activeBadge = null;
+
+  document.removeEventListener('mouseover', handleMouseOver, true);
+  document.removeEventListener('click', handleSelectClick, true);
+  document.removeEventListener('keydown', handleKeyDown, true);
+}
+
+function handleMouseOver(e: MouseEvent) {
+  if (!inspecting || !activeOverlay || !activeBadge) return;
+  const target = e.target as HTMLElement;
+  if (!target || target === activeOverlay || target === activeBadge) return;
+
+  const rect = target.getBoundingClientRect();
+  
+  // Update overlay position/size
+  activeOverlay.style.display = 'block';
+  activeOverlay.style.top = `${rect.top}px`;
+  activeOverlay.style.left = `${rect.left}px`;
+  activeOverlay.style.width = `${rect.width}px`;
+  activeOverlay.style.height = `${rect.height}px`;
+
+  // Build badge text: e.g. "div.container | 300x200"
+  let identifier = target.tagName.toLowerCase();
+  if (target.id) {
+    identifier += `#${target.id}`;
+  } else if (target.className && typeof target.className === 'string') {
+    const classes = target.className.trim().split(/\s+/).filter(c => c && !c.includes(':') && c.length < 20);
+    if (classes.length > 0) {
+      identifier += `.${classes.join('.')}`;
+    }
+  }
+  
+  activeBadge.style.display = 'block';
+  activeBadge.textContent = `${identifier} (${Math.round(rect.width)} × ${Math.round(rect.height)})`;
+
+  // Position badge nicely above or below overlay
+  const badgeHeight = 22;
+  let badgeTop = rect.top - badgeHeight - 6;
+  if (badgeTop < 0) {
+    // If not enough space above, position below the element
+    badgeTop = rect.bottom + 6;
+  }
+  let badgeLeft = rect.left;
+  if (badgeLeft + activeBadge.offsetWidth > window.innerWidth) {
+    badgeLeft = window.innerWidth - activeBadge.offsetWidth - 10;
+  }
+  if (badgeLeft < 0) {
+    badgeLeft = 10;
+  }
+
+  activeBadge.style.top = `${badgeTop}px`;
+  activeBadge.style.left = `${badgeLeft}px`;
+}
+
+function handleSelectClick(e: MouseEvent) {
+  if (!inspecting) return;
+  
+  // Hijack the click event
+  e.preventDefault();
+  e.stopPropagation();
+
+  const target = e.target as HTMLElement;
+  if (target) {
+    const primary = generatePrimarySelector(target);
+    const fallback = generateFallbackSelector(target);
+
+    // Send selection back to dashboard sidepanel
+    browser.runtime.sendMessage({
+      source: 'content',
+      type: MESSAGE_TYPES.DOM_ELEMENT_SELECTED,
+      payload: { primary, fallback }
+    }).catch(err => console.warn('FlowScript: Failed to send selected selector:', err));
+  }
+
+  cleanupDomSelector();
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Notify sidepanel about abort
+    browser.runtime.sendMessage({
+      source: 'content',
+      type: MESSAGE_TYPES.DOM_SELECT_ABORTED
+    }).catch(err => console.warn('FlowScript: Failed to send select abort:', err));
+
+    cleanupDomSelector();
+  }
 }
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { MESSAGE_TYPES, parseTriggers, ParsedTrigger, validateTriggers } from '@flowscript/shared';
 import { getSavedScript, saveScript, saveTriggers } from '@/utils/storage';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
+import { browser } from 'wxt/browser';
 
 let saveTriggersTimeout: any = null;
 
@@ -31,6 +32,8 @@ export interface AutomationState {
   triggers: ParsedTrigger[];
   validationError: string | null;
   isInitialized: boolean;
+  isSelectingElement: boolean;
+  selectedSelector: { primary: string; fallback: string } | null;
   
   // Actions
   initStore: () => Promise<void>;
@@ -43,6 +46,10 @@ export interface AutomationState {
   stopScript: (iframeEl: HTMLIFrameElement | null) => void;
   handleActionRequest: (payload: { id: number; action: any }, iframeEl: HTMLIFrameElement | null) => Promise<void>;
   runTriggerFunction: (functionName: string, tabId: number | undefined, iframeEl: HTMLIFrameElement | null) => Promise<void>;
+  startSelectingElement: () => Promise<void>;
+  stopSelectingElement: () => Promise<void>;
+  setSelectedSelector: (selector: { primary: string; fallback: string } | null) => void;
+  setSelectingState: (isSelecting: boolean) => void;
 }
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
@@ -56,6 +63,8 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   triggers: [],
   validationError: null,
   isInitialized: false,
+  isSelectingElement: false,
+  selectedSelector: null,
 
   initStore: async () => {
     const saved = await getSavedScript();
@@ -244,5 +253,48 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         timestamp: Date.now()
       });
     }
+  },
+
+  startSelectingElement: async () => {
+    if (get().isRunning) return;
+    try {
+      const tab = await queryActiveTab();
+      if (tab && tab.id) {
+        set({ isSelectingElement: true, selectedSelector: null });
+        await browser.tabs.sendMessage(tab.id, {
+          source: 'dashboard',
+          type: MESSAGE_TYPES.START_DOM_SELECT
+        });
+      }
+    } catch (error: any) {
+      get().addLog({
+        type: 'error',
+        message: `Failed to start element selector: ${error?.message || String(error)}`,
+        timestamp: Date.now()
+      });
+    }
+  },
+
+  stopSelectingElement: async () => {
+    try {
+      const tab = await queryActiveTab();
+      if (tab && tab.id) {
+        set({ isSelectingElement: false });
+        await browser.tabs.sendMessage(tab.id, {
+          source: 'dashboard',
+          type: MESSAGE_TYPES.STOP_DOM_SELECT
+        });
+      }
+    } catch (error) {
+      set({ isSelectingElement: false });
+    }
+  },
+
+  setSelectedSelector: (selector: { primary: string; fallback: string } | null) => {
+    set({ selectedSelector: selector });
+  },
+
+  setSelectingState: (isSelecting: boolean) => {
+    set({ isSelectingElement: isSelecting });
   }
 }));

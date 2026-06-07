@@ -172,4 +172,45 @@ export function validateTriggers(triggers: ParsedTrigger[]): string | null {
   return null;
 }
 
+/**
+ * Automatically prepends 'await ' to recognized async automation commands and element method calls
+ * if they are not already awaited, while leaving comments, string literals, and function/class/variable
+ * declarations untouched.
+ */
+export function autoAwaitCommands(code: string): string {
+  const placeholders: string[] = [];
+  const prefix = `__FLOWSCRIPT_STR_COMMENT_PH_${Math.random().toString(36).substring(2, 10)}__`;
+
+  // 1. Temporarily extract block comments, single-line comments, and strings to avoid matching within them
+  const tokenRegex = /\/\*[\s\S]*?\*\/|\/\/.*|`([^`\\]|\\.)*`|"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/g;
+  
+  let tempCode = code.replace(tokenRegex, (match) => {
+    const placeholder = `${prefix}${placeholders.length}__`;
+    placeholders.push(match);
+    return placeholder;
+  });
+
+  // 2. Prepend 'await ' to commands if they are not preceded by 'await' or definition keywords
+  const actionRegex = /\b(function|class|const|let|var)\s+(\w+)\s*\(|\b(await\s+)?(?:(\b(click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|sleep)\b)|((?<!\.)[\w$]+(?:\s*\([^)]*\))?(?:\s*\.\s*[\w$]+(?:\s*\([^)]*\))?)*\s*\.\s*(?:click|type|scroll|hover|getText|getValue|getAttribute|isDisabled|isVisible|exists)))\s*\(/g;
+
+  tempCode = tempCode.replace(actionRegex, (match, defKeyword, defName, awaitKeyword) => {
+    if (defKeyword) {
+      return match;
+    }
+    if (awaitKeyword) {
+      return match;
+    }
+    return `await ${match}`;
+  });
+
+  // 3. Restore the comments and string literals in the exact same positions
+  for (let idx = 0; idx < placeholders.length; idx++) {
+    tempCode = tempCode.replace(`${prefix}${idx}__`, () => placeholders[idx]);
+  }
+
+  return tempCode;
+}
+
+
+
 

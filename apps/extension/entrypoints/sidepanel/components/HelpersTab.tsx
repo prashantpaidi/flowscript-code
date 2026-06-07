@@ -18,21 +18,21 @@ export function HelpersTab() {
             <p className="font-semibold text-[11px] text-foreground">By Class Name</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Select elements using CSS classes.</p>
             <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
-              await click('.btn-submit');
+              click('.btn-submit');
             </code>
           </div>
           <div>
             <p className="font-semibold text-[11px] text-foreground">By ID</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Select a unique element with a specific ID.</p>
             <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
-              await type('#username', 'myUser');
+              type('#username', 'myUser');
             </code>
           </div>
           <div>
             <p className="font-semibold text-[11px] text-foreground">By Attribute</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Select using any tag attribute (e.g. type, placeholder).</p>
             <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
-              await click('input[type="submit"]');
+              click('input[type="submit"]');
             </code>
           </div>
         </CardContent>
@@ -50,14 +50,14 @@ export function HelpersTab() {
             <p className="font-semibold text-[11px] text-foreground">nativeClick(selector)</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Triggers a hardware mouse click at target coordinates.</p>
             <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
-              await nativeClick('#submit-btn');
+              nativeClick('#submit-btn');
             </code>
           </div>
           <div>
             <p className="font-semibold text-[11px] text-foreground">nativeType(selector, text)</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Simulates hardware keystrokes (triggers native events).</p>
             <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
-              await nativeType('input', 'Hello');
+              nativeType('input', 'Hello');
             </code>
           </div>
         </CardContent>
@@ -76,17 +76,17 @@ export function HelpersTab() {
             <p className="text-[10px] text-muted-foreground mt-0.5">Returns an element handle supporting chainable methods:</p>
             <code className="block bg-muted p-1 rounded font-mono text-[9px] mt-1 text-foreground leading-3.5 whitespace-pre">
 {`const card = query('.product-card');
-const text = await card.query('h1').getText();
-const isShowing = await card.isVisible();
-const attr = await card.getAttribute('href');`}
+const text = card.query('h1').getText();
+const isShowing = card.isVisible();
+const attr = card.getAttribute('href');`}
             </code>
           </div>
           <div>
             <p className="font-semibold text-[11px] text-foreground">updateDom(selector, path, value)</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">Directly update properties (including nested styles or classes).</p>
             <code className="block bg-muted p-1 rounded font-mono text-[9px] mt-1 text-foreground leading-3.5 whitespace-pre">
-{`await updateDom('.status', 'textContent', 'Done!');
-await updateDom('.card', 'style.color', 'blue');`}
+{`updateDom('.status', 'textContent', 'Done!');
+updateDom('.card', 'style.color', 'blue');`}
             </code>
           </div>
         </CardContent>
@@ -102,32 +102,32 @@ await updateDom('.card', 'style.color', 'blue');`}
         <CardContent className="p-3.5 pt-0 flex flex-col gap-2">
           <pre className="bg-muted p-2 rounded font-mono text-[9px] overflow-x-auto text-foreground leading-3.5">
 {`const card = query('.product-card');
-const title = await card.query('h1.title').getText();
-const price = await card.query('.price-tag').getText();
+const title = card.query('h1.title').getText();
+const price = card.query('.price-tag').getText();
 
 console.log("Scraped: " + title + " for " + price);
 
 const submitBtn = query('button[type="submit"]');
-const isBlocked = await submitBtn.isDisabled();
+const isBlocked = submitBtn.isDisabled();
 
 if (isBlocked) {
   console.log("Button is locked! Skipping click.");
 } else {
-  await submitBtn.click();
+  submitBtn.click();
 }`}
           </pre>
           <Button 
             onClick={() => setCode(
               `const card = query('.product-card');\n` +
-              `const title = await card.query('h1.title').getText();\n` +
-              `const price = await card.query('.price-tag').getText();\n\n` +
+              `const title = card.query('h1.title').getText();\n` +
+              `const price = card.query('.price-tag').getText();\n\n` +
               `console.log("Scraped: " + title + " for " + price);\n\n` +
               `const submitBtn = query('button[type="submit"]');\n` +
-              `const isBlocked = await submitBtn.isDisabled();\n\n` +
+              `const isBlocked = submitBtn.isDisabled();\n\n` +
               `if (isBlocked) {\n` +
               `  console.log("Button is locked! Skipping click.");\n` +
               `} else {\n` +
-              `  await submitBtn.click();\n` +
+              `  submitBtn.click();\n` +
               `}\n`
             )}
             variant="outline" 

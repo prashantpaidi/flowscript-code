@@ -26,6 +26,8 @@ export default function SidepanelApp() {
   const validationError = useAutomationStore((s) => s.validationError);
   const runTriggerFunction = useAutomationStore((s) => s.runTriggerFunction);
   const isInitialized = useAutomationStore((s) => s.isInitialized);
+  const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
+  const setSelectingState = useAutomationStore((s) => s.setSelectingState);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -59,21 +61,28 @@ export default function SidepanelApp() {
     return () => window.removeEventListener('message', handleSandboxMessage);
   }, [addLog, handleActionRequest, setExecutionComplete]);
 
-  // Handle messages from content script for trigger invocations
+  // Handle messages from content script for trigger invocations and DOM selector
   useEffect(() => {
     const handleRuntimeMessage = (message: any, sender: any) => {
-      if (message && message.source === 'content' && message.type === 'RUN_TRIGGER_FUNCTION') {
+      if (!message || message.source !== 'content') return;
+
+      if (message.type === 'RUN_TRIGGER_FUNCTION') {
         const { functionName } = message.payload;
         const senderTabId = sender.tab?.id;
         if (senderTabId) {
           runTriggerFunction(functionName, senderTabId, iframeRef.current);
         }
+      } else if (message.type === MESSAGE_TYPES.DOM_ELEMENT_SELECTED) {
+        setSelectedSelector(message.payload);
+        setSelectingState(false);
+      } else if (message.type === MESSAGE_TYPES.DOM_SELECT_ABORTED) {
+        setSelectingState(false);
       }
     };
 
     browser.runtime.onMessage.addListener(handleRuntimeMessage);
     return () => browser.runtime.onMessage.removeListener(handleRuntimeMessage);
-  }, [runTriggerFunction]);
+  }, [runTriggerFunction, setSelectedSelector, setSelectingState]);
 
   const [iframeLoaded, setIframeLoaded] = useState(false);
 
