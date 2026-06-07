@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import { MESSAGE_TYPES, parseTriggers, ParsedTrigger, validateTriggers } from '@flowscript/shared';
-import { getSavedScript, saveScript, saveTriggers } from '@/utils/storage';
+import { 
+  getSavedScript, 
+  saveScript, 
+  saveTriggers, 
+  FileNode, 
+  getSavedFiles, 
+  saveFiles, 
+  getActiveFileId, 
+  saveActiveFileId,
+  getFileContent,
+  saveFileContent,
+  deleteFileContent
+} from '@/utils/storage';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
 import { browser } from 'wxt/browser';
 
@@ -13,6 +25,29 @@ const debouncedSaveTriggers = (triggers: ParsedTrigger[]) => {
       console.error('Failed to save triggers to storage:', err);
     });
   }, 1000);
+};
+
+let saveFileContentTimeout: any = null;
+
+const debouncedSaveFileContent = (id: string, content: string) => {
+  if (saveFileContentTimeout) clearTimeout(saveFileContentTimeout);
+  saveFileContentTimeout = setTimeout(() => {
+    saveFileContent(id, content).catch((err) => {
+      console.error('Failed to save file content to storage:', err);
+    });
+  }, 250);
+};
+
+const getDescendantIds = (nodes: FileNode[], parentId: string): string[] => {
+  const ids: string[] = [];
+  const children = nodes.filter((n) => n.parentId === parentId);
+  for (const child of children) {
+    ids.push(child.id);
+    if (child.type === 'folder') {
+      ids.push(...getDescendantIds(nodes, child.id));
+    }
+  }
+  return ids;
 };
 
 export interface ConsoleLog {
@@ -35,6 +70,11 @@ export interface AutomationState {
   isSelectingElement: boolean;
   selectedSelector: { primary: string; fallback: string } | null;
   
+  // Virtual File Tree State
+  files: FileNode[];
+  activeFileId: string | null;
+  fileExplorerOpen: boolean;
+
   // Actions
   initStore: () => Promise<void>;
   setCode: (code: string) => void;
@@ -50,6 +90,14 @@ export interface AutomationState {
   stopSelectingElement: () => Promise<void>;
   setSelectedSelector: (selector: { primary: string; fallback: string } | null) => void;
   setSelectingState: (isSelecting: boolean) => void;
+
+  // Virtual File Tree Actions
+  createFile: (name: string, parentId: string | null) => string;
+  createFolder: (name: string, parentId: string | null) => string;
+  renameNode: (id: string, newName: string) => void;
+  deleteNode: (id: string) => void;
+  setActiveFileId: (id: string) => void | Promise<void>;
+  setFileExplorerOpen: (open: boolean) => void;
 }
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
@@ -65,42 +113,110 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   isInitialized: false,
   isSelectingElement: false,
   selectedSelector: null,
+  
+  // Virtual File Tree Defaults
+  files: [],
+  activeFileId: null,
+  fileExplorerOpen: true,
 
   initStore: async () => {
-    const saved = await getSavedScript();
-    if (saved) {
-      const parsed = parseTriggers(saved);
-      const valError = validateTriggers(parsed);
-      set({ 
-        code: saved,
-        triggers: parsed,
-        validationError: valError,
-        isInitialized: true
-      });
-      saveTriggers(valError ? [] : parsed).catch((err) => {
-        console.error('Failed to initialize triggers in storage:', err);
-      });
-    } else {
+    try {
+      const savedFiles = await getSavedFiles();
+      const savedActiveId = await getActiveFileId();
+
+      if (savedFiles && savedFiles.length > 0) {
+        let activeId = savedActiveId;
+        let activeFile = savedFiles.find(f => f.id === activeId && f.type === 'file');
+        
+        if (!activeFile) {
+          const filesOnly = savedFiles.filter(f => f.type === 'file');
+          if (filesOnly.length > 0) {
+            activeFile = filesOnly[0];
+            activeId = activeFile.id;
+          }
+        }
+
+        if (activeId) {
+          const activeContent = await getFileContent(activeId);
+          const parsed = parseTriggers(activeContent);
+          const valError = validateTriggers(parsed);
+          set({
+            files: savedFiles,
+            activeFileId: activeId,
+            code: activeContent,
+            triggers: parsed,
+            validationError: valError,
+            isInitialized: true
+          });
+          saveActiveFileId(activeId).catch(console.error);
+          saveTriggers(valError ? [] : parsed).catch((err) => {
+            console.error('Failed to initialize triggers in storage:', err);
+          });
+        } else {
+          set({ files: savedFiles, isInitialized: true });
+        }
+      } else {
+        // Migration: read from legacy scriptStorage
+        const savedLegacyScript = await getSavedScript();
+        const defaultId = 'default-main';
+        const defaultCode = savedLegacyScript || 
+          `// FlowScript Automation Script\n` +
+          `// Write click() or type() to automate tasks\n\n` +
+          `// 1. Click a search box or input\n` +
+          `click('input[type="search"]');\n\n` +
+          `// 2. Wait 1 second\n` +
+          `sleep(1000);\n\n` +
+          `// 3. Type into it\n` +
+          `type('input[type="search"]', 'FlowScript Automation');\n`;
+
+        const defaultFile: FileNode = {
+          id: defaultId,
+          name: 'main.ts',
+          type: 'file',
+          parentId: null
+        };
+
+        const initialFiles = [defaultFile];
+        const parsed = parseTriggers(defaultCode);
+        const valError = validateTriggers(parsed);
+
+        set({
+          files: initialFiles,
+          activeFileId: defaultId,
+          code: defaultCode,
+          triggers: parsed,
+          validationError: valError,
+          isInitialized: true
+        });
+
+        saveFiles(initialFiles).catch(console.error);
+        saveFileContent(defaultId, defaultCode).catch(console.error);
+        saveActiveFileId(defaultId).catch(console.error);
+        saveTriggers(valError ? [] : parsed).catch((err) => {
+          console.error('Failed to initialize triggers in storage:', err);
+        });
+      }
+    } catch (error) {
+      console.error('Error during initStore:', error);
       set({ isInitialized: true });
     }
   },
 
   setCode: (code: string) => {
+    const activeId = get().activeFileId;
+    if (!activeId) return;
+
     const parsed = parseTriggers(code);
     const valError = validateTriggers(parsed);
+    
     set({ 
       code, 
       triggers: parsed,
       validationError: valError
     });
-    saveScript(code).catch((err) => {
-      console.error('Failed to save script to storage:', err);
-      get().addLog({
-        type: 'error',
-        message: `Storage error: Failed to save script changes: ${err?.message || String(err)}`,
-        timestamp: Date.now()
-      });
-    });
+
+    debouncedSaveFileContent(activeId, code);
+    saveScript(code).catch(err => console.error('Failed to save legacy script:', err));
     
     if (!valError) {
       debouncedSaveTriggers(parsed);
@@ -108,6 +224,149 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       debouncedSaveTriggers([]);
     }
   },
+
+  createFile: (name: string, parentId: string | null) => {
+    const id = Math.random().toString(36).substring(2, 11);
+    const fileName = name.trim();
+    const finalName = fileName.endsWith('.ts') || fileName.endsWith('.js') ? fileName : `${fileName}.ts`;
+    
+    const newFile: FileNode = {
+      id,
+      name: finalName,
+      type: 'file',
+      parentId
+    };
+
+    const defaultContent = '// New FlowScript File\n';
+    const updatedFiles = [...get().files, newFile];
+    
+    set({ files: updatedFiles, activeFileId: id, code: defaultContent });
+    saveFiles(updatedFiles).catch(console.error);
+    saveFileContent(id, defaultContent).catch(console.error);
+    saveActiveFileId(id).catch(console.error);
+
+    const parsed = parseTriggers(defaultContent);
+    const valError = validateTriggers(parsed);
+    set({ triggers: parsed, validationError: valError });
+    debouncedSaveTriggers(parsed);
+
+    return id;
+  },
+
+  createFolder: (name: string, parentId: string | null) => {
+    const id = Math.random().toString(36).substring(2, 11);
+    const newFolder: FileNode = {
+      id,
+      name: name.trim(),
+      type: 'folder',
+      parentId
+    };
+
+    const updatedFiles = [...get().files, newFolder];
+    set({ files: updatedFiles });
+    saveFiles(updatedFiles).catch(console.error);
+
+    return id;
+  },
+
+  renameNode: (id: string, newName: string) => {
+    const trimmedName = newName.trim();
+    if (!trimmedName) return;
+
+    const updatedFiles = get().files.map(node => {
+      if (node.id === id) {
+        let name = trimmedName;
+        if (node.type === 'file' && !name.includes('.')) {
+          const oldExt = node.name.split('.').pop();
+          name = `${trimmedName}.${oldExt || 'ts'}`;
+        }
+        return { ...node, name };
+      }
+      return node;
+    });
+
+    set({ files: updatedFiles });
+    saveFiles(updatedFiles).catch(console.error);
+  },
+
+  deleteNode: (id: string) => {
+    const currentFiles = get().files;
+    const targetNode = currentFiles.find(n => n.id === id);
+    if (!targetNode) return;
+
+    const idsToDelete = [id];
+    if (targetNode.type === 'folder') {
+      idsToDelete.push(...getDescendantIds(currentFiles, id));
+    }
+
+    const updatedFiles = currentFiles.filter(n => !idsToDelete.includes(n.id));
+    set({ files: updatedFiles });
+    saveFiles(updatedFiles).catch(console.error);
+
+    idsToDelete.forEach(deletedId => {
+      const deletedNode = currentFiles.find(n => n.id === deletedId);
+      if (deletedNode && deletedNode.type === 'file') {
+        deleteFileContent(deletedId).catch(console.error);
+      }
+    });
+
+    if (idsToDelete.includes(get().activeFileId || '')) {
+      const remainingFiles = updatedFiles.filter(n => n.type === 'file');
+      if (remainingFiles.length > 0) {
+        const nextActiveId = remainingFiles[0].id;
+        get().setActiveFileId(nextActiveId);
+      } else {
+        const defaultId = 'default-main';
+        const defaultCode = '// FlowScript Automation Script\n';
+        const defaultFile: FileNode = {
+          id: defaultId,
+          name: 'main.ts',
+          type: 'file',
+          parentId: null
+        };
+        const finalFiles = [defaultFile];
+        set({
+          files: finalFiles,
+          activeFileId: defaultId,
+          code: defaultCode,
+          triggers: [],
+          validationError: null
+        });
+        saveFiles(finalFiles).catch(console.error);
+        saveFileContent(defaultId, defaultCode).catch(console.error);
+        saveActiveFileId(defaultId).catch(console.error);
+        debouncedSaveTriggers([]);
+      }
+    }
+  },
+
+  setActiveFileId: async (id: string) => {
+    const targetFile = get().files.find(n => n.id === id && n.type === 'file');
+    if (!targetFile) return;
+
+    try {
+      const content = await getFileContent(id);
+      set({ activeFileId: id, code: content });
+      saveActiveFileId(id).catch(console.error);
+
+      const parsed = parseTriggers(content);
+      const valError = validateTriggers(parsed);
+      set({ triggers: parsed, validationError: valError });
+
+      if (!valError) {
+        debouncedSaveTriggers(parsed);
+      } else {
+        debouncedSaveTriggers([]);
+      }
+    } catch (err) {
+      console.error('Failed to load file content on activation:', err);
+    }
+  },
+
+  setFileExplorerOpen: (fileExplorerOpen: boolean) => {
+    set({ fileExplorerOpen });
+  },
+
 
   setActiveTab: (activeTab: string) => {
     set({ activeTab });
