@@ -30,12 +30,11 @@ export default defineBackground(() => {
       const tabId = sender.tab?.id;
       
       if (!isSidepanelOpen && tabId) {
-        savePendingTrigger({ functionName, tabId }).then(() => {
-          browser.sidePanel.open({ tabId }).catch((error) => {
-            console.error('Background: Failed to open side panel:', error);
-          });
-        }).catch((err) => {
+        savePendingTrigger({ functionName, tabId }).catch((err) => {
           console.error('Background: Failed to save pending trigger:', err);
+        });
+        browser.sidePanel.open({ tabId }).catch((error) => {
+          console.error('Background: Failed to open side panel:', error);
         });
       }
     }

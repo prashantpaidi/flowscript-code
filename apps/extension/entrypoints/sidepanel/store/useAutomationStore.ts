@@ -30,6 +30,7 @@ export interface AutomationState {
   targetTabId?: number;
   triggers: ParsedTrigger[];
   validationError: string | null;
+  isInitialized: boolean;
   
   // Actions
   initStore: () => Promise<void>;
@@ -54,6 +55,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   targetTabId: undefined,
   triggers: [],
   validationError: null,
+  isInitialized: false,
 
   initStore: async () => {
     const saved = await getSavedScript();
@@ -63,11 +65,14 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ 
         code: saved,
         triggers: parsed,
-        validationError: valError
+        validationError: valError,
+        isInitialized: true
       });
       saveTriggers(valError ? [] : parsed).catch((err) => {
         console.error('Failed to initialize triggers in storage:', err);
       });
+    } else {
+      set({ isInitialized: true });
     }
   },
 
@@ -90,6 +95,8 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     
     if (!valError) {
       debouncedSaveTriggers(parsed);
+    } else {
+      debouncedSaveTriggers([]);
     }
   },
 

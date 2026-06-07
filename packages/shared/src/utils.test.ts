@@ -212,6 +212,24 @@ describe('parseTriggers', () => {
       }
     ]);
   });
+
+  it('should parse triggers when the function declaration has a trailing block comment on the same line', () => {
+    const code = `
+      // @trigger('hotkey', 'alt+s')
+      function savePage() { /* block comment here */
+        console.log('save');
+      }
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([
+      {
+        type: 'hotkey',
+        triggerVal: 'alt+s',
+        displayLabel: 'Alt + S',
+        functionName: 'savePage'
+      }
+    ]);
+  });
 });
 
 describe('cleanScriptCode', () => {

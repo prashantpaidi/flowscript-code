@@ -70,9 +70,7 @@ export function parseTriggers(code: string): ParsedTrigger[] {
     if (!line) continue;
     
     // Check block comment state
-    const startsBlock = line.startsWith('/*') || (inBlockComment && !line.includes('*/'));
-    const endsBlock = line.includes('*/');
-    const isCommentLine = inBlockComment || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*') || endsBlock;
+    const isCommentLine = inBlockComment || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*');
 
     if (line.startsWith('/*') && !line.includes('*/')) {
       inBlockComment = true;

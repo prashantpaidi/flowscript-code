@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +25,7 @@ export default function SidepanelApp() {
   const triggers = useAutomationStore((s) => s.triggers);
   const validationError = useAutomationStore((s) => s.validationError);
   const runTriggerFunction = useAutomationStore((s) => s.runTriggerFunction);
+  const isInitialized = useAutomationStore((s) => s.isInitialized);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -74,14 +75,21 @@ export default function SidepanelApp() {
     return () => browser.runtime.onMessage.removeListener(handleRuntimeMessage);
   }, [runTriggerFunction]);
 
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+
   // Handle executing any pending triggers queued while sidepanel was closed
-  const handleIframeLoad = async () => {
-    const pending = await getPendingTrigger();
-    if (pending) {
-      await savePendingTrigger(null);
-      runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current);
+  useEffect(() => {
+    if (iframeLoaded && isInitialized) {
+      const handlePending = async () => {
+        const pending = await getPendingTrigger();
+        if (pending) {
+          await savePendingTrigger(null);
+          runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current);
+        }
+      };
+      handlePending();
     }
-  };
+  }, [iframeLoaded, isInitialized, runTriggerFunction]);
 
   return (
     <TooltipProvider>
@@ -92,7 +100,7 @@ export default function SidepanelApp() {
           src={browser.runtime.getURL('/sandbox.html')}
           style={{ display: 'none' }}
           sandbox="allow-scripts"
-          onLoad={handleIframeLoad}
+          onLoad={() => setIframeLoaded(true)}
         />
 
         {/* Header Section */}

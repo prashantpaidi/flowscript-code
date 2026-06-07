@@ -106,7 +106,7 @@ export interface PendingTrigger {
   tabId: number;
 }
 
-const pendingTriggerStorage = storage.defineItem<PendingTrigger | null>('local:pending_trigger', {
+const pendingTriggerStorage = storage.defineItem<PendingTrigger | null>('session:pending_trigger', {
   defaultValue: null,
 });
 

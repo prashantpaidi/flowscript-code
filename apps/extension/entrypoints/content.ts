@@ -22,13 +22,27 @@ export default defineContentScript({
 });
 
 
+function hasPrototypePollution(path: string): boolean {
+  const parts = path.split('.');
+  return parts.some(part => {
+    const p = part.trim().toLowerCase();
+    return p === '__proto__' || p === 'constructor' || p === 'prototype';
+  });
+}
+
 function getNestedProperty(obj: any, path: string): any {
+  if (hasPrototypePollution(path)) {
+    return undefined;
+  }
   return path.split('.').reduce((acc, part) => {
     return acc && acc[part] !== undefined ? acc[part] : undefined;
   }, obj);
 }
 
 function setNestedProperty(obj: any, path: string, value: any): boolean {
+  if (hasPrototypePollution(path)) {
+    throw new Error('Access denied: Prototype pollution keys are forbidden.');
+  }
   const parts = path.split('.');
   let current = obj;
   for (let i = 0; i < parts.length - 1; i++) {
@@ -91,6 +105,10 @@ const actionHandlers: Record<string, ActionHandler> = {
   },
   readDom: (element, action) => {
     const path = (action.property || 'textContent').trim();
+    if (path.startsWith('attr:')) {
+      const attrName = path.slice(5);
+      return { success: true, value: element.getAttribute(attrName) || '' };
+    }
     const resolvedPath = path === 'text' ? 'textContent' : path === 'html' ? 'innerHTML' : path;
 
     if (resolvedPath === '__exists') {

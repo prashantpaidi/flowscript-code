@@ -273,7 +273,7 @@ class ElementHandle {
   }
 
   async getAttribute(attributeName: string): Promise<string> {
-    return (globalThis as any).readDom(this.fullSelector, attributeName);
+    return (globalThis as any).readDom(this.fullSelector, `attr:${attributeName}`);
   }
 
   async isDisabled(): Promise<boolean> {
