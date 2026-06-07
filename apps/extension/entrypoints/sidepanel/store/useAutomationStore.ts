@@ -1,7 +1,18 @@
 import { create } from 'zustand';
-import { MESSAGE_TYPES } from '@flowscript/shared';
-import { getSavedScript, saveScript } from '@/utils/storage';
+import { MESSAGE_TYPES, parseTriggers, ParsedTrigger, validateTriggers } from '@flowscript/shared';
+import { getSavedScript, saveScript, saveTriggers } from '@/utils/storage';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
+
+let saveTriggersTimeout: any = null;
+
+const debouncedSaveTriggers = (triggers: ParsedTrigger[]) => {
+  if (saveTriggersTimeout) clearTimeout(saveTriggersTimeout);
+  saveTriggersTimeout = setTimeout(() => {
+    saveTriggers(triggers).catch((err) => {
+      console.error('Failed to save triggers to storage:', err);
+    });
+  }, 1000);
+};
 
 export interface ConsoleLog {
   type: 'log' | 'error' | 'step';
@@ -17,6 +28,9 @@ export interface AutomationState {
   errorMessage: string;
   activeTab: string;
   targetTabId?: number;
+  triggers: ParsedTrigger[];
+  validationError: string | null;
+  isInitialized: boolean;
   
   // Actions
   initStore: () => Promise<void>;
@@ -28,6 +42,7 @@ export interface AutomationState {
   runScript: (iframeEl: HTMLIFrameElement | null) => Promise<void>;
   stopScript: (iframeEl: HTMLIFrameElement | null) => void;
   handleActionRequest: (payload: { id: number; action: any }, iframeEl: HTMLIFrameElement | null) => Promise<void>;
+  runTriggerFunction: (functionName: string, tabId: number | undefined, iframeEl: HTMLIFrameElement | null) => Promise<void>;
 }
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
@@ -38,16 +53,37 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   errorMessage: '',
   activeTab: 'editor',
   targetTabId: undefined,
+  triggers: [],
+  validationError: null,
+  isInitialized: false,
 
   initStore: async () => {
     const saved = await getSavedScript();
     if (saved) {
-      set({ code: saved });
+      const parsed = parseTriggers(saved);
+      const valError = validateTriggers(parsed);
+      set({ 
+        code: saved,
+        triggers: parsed,
+        validationError: valError,
+        isInitialized: true
+      });
+      saveTriggers(valError ? [] : parsed).catch((err) => {
+        console.error('Failed to initialize triggers in storage:', err);
+      });
+    } else {
+      set({ isInitialized: true });
     }
   },
 
   setCode: (code: string) => {
-    set({ code });
+    const parsed = parseTriggers(code);
+    const valError = validateTriggers(parsed);
+    set({ 
+      code, 
+      triggers: parsed,
+      validationError: valError
+    });
     saveScript(code).catch((err) => {
       console.error('Failed to save script to storage:', err);
       get().addLog({
@@ -56,6 +92,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         timestamp: Date.now()
       });
     });
+    
+    if (!valError) {
+      debouncedSaveTriggers(parsed);
+    } else {
+      debouncedSaveTriggers([]);
+    }
   },
 
   setActiveTab: (activeTab: string) => {
@@ -163,6 +205,44 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
           payload: { id, success: false, error: error?.message || 'Failed to communicate with webpage.' }
         }, '*');
       }
+    }
+  },
+
+  runTriggerFunction: async (functionName, tabId, iframeEl) => {
+    if (get().isRunning) return;
+
+    try {
+      set({
+        logs: [],
+        errorMessage: '',
+        isRunning: true,
+        status: 'running',
+        activeTab: 'console',
+        targetTabId: undefined
+      });
+
+      let finalTabId = tabId;
+      if (!finalTabId) {
+        const tab = await queryActiveTab();
+        finalTabId = tab.id;
+      }
+      set({ targetTabId: finalTabId });
+
+      iframeEl?.contentWindow?.postMessage({
+        type: 'RUN_TRIGGER',
+        payload: { code: get().code, functionName }
+      }, '*');
+    } catch (error: any) {
+      set({
+        isRunning: false,
+        status: 'error',
+        errorMessage: error?.message || 'Failed to start trigger execution.'
+      });
+      get().addLog({
+        type: 'error',
+        message: `Trigger execution failed: ${error?.message || String(error)}`,
+        timestamp: Date.now()
+      });
     }
   }
 }));

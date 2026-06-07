@@ -1,10 +1,15 @@
 import { MESSAGE_TYPES } from '@flowscript/shared';
 import { performNativeClick, performNativeType } from '@/utils/debugger-actions';
+import { getSavedTriggers, watchTriggers } from '@/utils/storage';
+import { TriggerManager } from '@/utils/trigger-manager';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   main() {
     console.log('FlowScript content script initialized.');
+
+    // Initialize triggers
+    initTriggers();
 
     // Listen for execution commands from the sidepanel
     browser.runtime.onMessage.addListener((message, sender) => {
@@ -17,19 +22,67 @@ export default defineContentScript({
 });
 
 
-type ActionHandler = (element: HTMLElement, value?: string, selector?: string) => Promise<boolean> | boolean;
+function hasPrototypePollution(path: string): boolean {
+  const parts = path.split('.');
+  return parts.some(part => {
+    const p = part.trim().toLowerCase();
+    return p === '__proto__' || p === 'constructor' || p === 'prototype';
+  });
+}
+
+function getNestedProperty(obj: any, path: string): any {
+  if (hasPrototypePollution(path)) {
+    return undefined;
+  }
+  return path.split('.').reduce((acc, part) => {
+    return acc && acc[part] !== undefined ? acc[part] : undefined;
+  }, obj);
+}
+
+function setNestedProperty(obj: any, path: string, value: any): boolean {
+  if (hasPrototypePollution(path)) {
+    throw new Error('Access denied: Prototype pollution keys are forbidden.');
+  }
+  const parts = path.split('.');
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (current[part] === undefined) {
+      current[part] = {};
+    }
+    current = current[part];
+  }
+  const lastPart = parts[parts.length - 1];
+  current[lastPart] = value;
+  return true;
+}
+
+function isElementVisible(el: HTMLElement): boolean {
+  if (!el.ownerDocument.defaultView) return false;
+  const style = el.ownerDocument.defaultView.getComputedStyle(el);
+  return (
+    style.display !== 'none' &&
+    style.visibility !== 'hidden' &&
+    style.opacity !== '0' &&
+    el.offsetWidth > 0 &&
+    el.offsetHeight > 0
+  );
+}
+
+type ActionHandler = (element: HTMLElement, action: any) => Promise<any> | any;
 
 const actionHandlers: Record<string, ActionHandler> = {
   click: (element) => {
     element.click();
     return true;
   },
-  type: (element, value) => {
+  type: (element, action) => {
+    const value = action.value || '';
     element.focus();
     if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-      element.value = value || '';
+      element.value = value;
     } else {
-      element.innerText = value || '';
+      element.innerText = value;
     }
     element.dispatchEvent(new Event('input', { bubbles: true }));
     element.dispatchEvent(new Event('change', { bubbles: true }));
@@ -44,32 +97,81 @@ const actionHandlers: Record<string, ActionHandler> = {
     element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     return true;
   },
-  nativeClick: async (element, value, selector) => {
-    return performNativeClick(selector!);
+  nativeClick: async (element, action) => {
+    return performNativeClick(action.selector);
   },
-  nativeType: async (element, value, selector) => {
-    return performNativeType(selector!, value || '');
+  nativeType: async (element, action) => {
+    return performNativeType(action.selector, action.value || '');
+  },
+  readDom: (element, action) => {
+    const path = (action.property || 'textContent').trim();
+    if (path.startsWith('attr:')) {
+      const attrName = path.slice(5);
+      return { success: true, value: element.getAttribute(attrName) || '' };
+    }
+    const resolvedPath = path === 'text' ? 'textContent' : path === 'html' ? 'innerHTML' : path;
+
+    if (resolvedPath === '__exists') {
+      return { success: true, value: true };
+    }
+    if (resolvedPath === '__isVisible') {
+      return { success: true, value: isElementVisible(element) };
+    }
+
+    const value = getNestedProperty(element, resolvedPath);
+    if (value === undefined && !path.includes('.')) {
+      return { success: true, value: element.getAttribute(path) || '' };
+    }
+    return { success: true, value: value !== undefined ? value : '' };
+  },
+  updateDom: (element, action) => {
+    const path = (action.property || '').trim();
+    if (!path) {
+      throw new Error('Property path is required for updateDom action');
+    }
+    const resolvedPath = path === 'text' ? 'textContent' : path === 'html' ? 'innerHTML' : path;
+    const value = action.value;
+
+    setNestedProperty(element, resolvedPath, value);
+
+    if (resolvedPath === 'value') {
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    return true;
   }
 };
 
 async function executeAction(id: number, action: any, primaryColor?: string) {
   try {
-    const { type, selector, value } = action;
+    const { type, selector } = action;
     const element = document.querySelector(selector) as HTMLElement;
     if (!element) {
+      if (type === 'readDom') {
+        const path = (action.property || 'textContent').trim();
+        const resolvedPath = path === 'text' ? 'textContent' : path === 'html' ? 'innerHTML' : path;
+        if (resolvedPath === '__exists' || resolvedPath === '__isVisible') {
+          return { id, success: true, value: false };
+        }
+        return { id, success: true, value: null };
+      }
       return { id, success: false, error: `Element not found for selector: "${selector}"` };
     }
 
-    // Scroll element into view smoothly
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-    // Premium visual micro-animation: Flash neon glow overlay on the target element
-    await flashElement(element, primaryColor);
+    // Only scroll and flash for interactive/mutating actions (not readDom/scraping actions)
+    if (type !== 'readDom') {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await flashElement(element, primaryColor);
+    }
 
     const handler = actionHandlers[type];
     if (handler) {
-      const success = await handler(element, value, selector);
-      return { id, success };
+      const result = await handler(element, action);
+      if (typeof result === 'object' && result !== null && 'success' in result) {
+        return { id, ...result };
+      }
+      return { id, success: !!result };
     }
 
     return { id, success: false, error: `Unsupported action type: "${type}"` };
@@ -100,3 +202,35 @@ async function flashElement(element: HTMLElement, primaryColor: string = 'hsl(0 
   await new Promise((resolve) => setTimeout(resolve, 150));
   element.style.transition = originalTransition;
 }
+
+let triggerManager: TriggerManager | null = null;
+
+async function initTriggers() {
+  triggerManager = new TriggerManager(executeTriggerFunction);
+  triggerManager.setup();
+
+  try {
+    const triggers = await getSavedTriggers();
+    if (triggers) {
+      triggerManager.update(triggers);
+    }
+  } catch (error) {
+    console.error('FlowScript: Failed to initialize triggers:', error);
+  }
+
+  watchTriggers((newTriggers) => {
+    triggerManager?.update(newTriggers || []);
+  });
+}
+
+async function executeTriggerFunction(functionName: string) {
+  console.log(`FlowScript: Firing trigger for function: ${functionName}()`);
+  browser.runtime.sendMessage({
+    source: 'content',
+    type: 'RUN_TRIGGER_FUNCTION',
+    payload: { functionName }
+  }).catch((err) => {
+    console.warn('FlowScript: Could not invoke trigger function. Is the sidepanel open?', err);
+  });
+}
+

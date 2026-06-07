@@ -1,7 +1,11 @@
-import { MESSAGE_TYPES, sleep } from '@flowscript/shared';
+import { MESSAGE_TYPES, sleep, cleanScriptCode, parseTriggers } from '@flowscript/shared';
 
 const pendingActions = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
 let actionIdCounter = 0;
+
+// Persistent compilation cache for trigger state
+let lastCompiledCode: string | null = null;
+let compiledFunctions: Record<string, Function> = {};
 
 // Dynamic Action Registry defining scalable commands
 interface ActionRegistryItem {
@@ -40,6 +44,16 @@ const ACTION_REGISTRY: ActionRegistryItem[] = [
     name: 'nativeType',
     createPayload: (selector: string, value: string) => ({ type: 'nativeType', selector, value }),
     formatLog: (act) => `NATIVE TYPE: "${act.value}" into ${act.selector}`
+  },
+  {
+    name: 'readDom',
+    createPayload: (selector: string, property: string = 'textContent') => ({ type: 'readDom', selector, property }),
+    formatLog: (act) => `READ DOM: property "${act.property}" from ${act.selector}`
+  },
+  {
+    name: 'updateDom',
+    createPayload: (selector: string, property: string, value: any) => ({ type: 'updateDom', selector, property, value }),
+    formatLog: (act) => `UPDATE DOM: set "${act.property}" to "${typeof act.value === 'object' ? JSON.stringify(act.value) : act.value}" on ${act.selector}`
   }
 ];
 
@@ -113,6 +127,10 @@ window.addEventListener('message', async (event) => {
     try {
       logToParent('log', 'Starting execution...');
       
+      // Clear compile cache on script manual start
+      lastCompiledCode = null;
+      compiledFunctions = {};
+      
       // Wrap code in async function so await is allowed
       const executionFunction = new Function(`
         return (async () => {
@@ -137,6 +155,70 @@ window.addEventListener('message', async (event) => {
         payload: { success: false, error: errMsg }
       }, '*');
     }
+  } else if (data.type === 'RUN_TRIGGER') {
+    const { code, functionName } = data.payload;
+    try {
+      logToParent('log', `Executing trigger function: ${functionName}...`);
+      
+      if (code !== lastCompiledCode) {
+        logToParent('log', 'Compiling script and caching trigger functions...');
+        const cleanCode = cleanScriptCode(code);
+        const triggers = parseTriggers(code);
+        const uniqueFuncNames = Array.from(new Set(triggers.map(t => t.functionName)));
+        
+        const returnStatement = `return {
+          ${uniqueFuncNames.map(name => `${name}: typeof ${name} !== 'undefined' ? ${name} : undefined`).join(',\n')}
+        };`;
+
+        const actionNames = [...ACTION_REGISTRY.map(act => act.name), 'sleep'];
+        const origActions: Record<string, any> = {};
+        
+        // Neutralise top-level actions dynamically during compilation
+        for (const name of actionNames) {
+          origActions[name] = (globalThis as any)[name];
+          (globalThis as any)[name] = async () => {};
+        }
+
+        try {
+          const executionFunction = new Function(`
+            return (async () => {
+              ${cleanCode}
+              ${returnStatement}
+            })();
+          `);
+          
+          compiledFunctions = await executionFunction();
+        } finally {
+          // Restore action implementations immediately after compilation
+          for (const name of actionNames) {
+            (globalThis as any)[name] = origActions[name];
+          }
+        }
+        lastCompiledCode = code;
+      }
+
+      const targetFn = compiledFunctions[functionName];
+      if (typeof targetFn === 'function') {
+        await targetFn();
+      } else {
+        throw new Error(`Function '${functionName}' is not defined or registered as a trigger in the script.`);
+      }
+      
+      logToParent('log', `Trigger function '${functionName}' completed.`);
+      window.parent.postMessage({
+        source: 'sandbox',
+        type: MESSAGE_TYPES.EXECUTION_COMPLETE,
+        payload: { success: true }
+      }, '*');
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      logToParent('error', `Trigger function '${functionName}' failed: ${errMsg}`);
+      window.parent.postMessage({
+        source: 'sandbox',
+        type: MESSAGE_TYPES.EXECUTION_COMPLETE,
+        payload: { success: false, error: errMsg }
+      }, '*');
+    }
   } else if (data.type === MESSAGE_TYPES.ACTION_RESPONSE) {
     const { id, success, error, value } = data.payload;
     const pending = pendingActions.get(id);
@@ -150,4 +232,69 @@ window.addEventListener('message', async (event) => {
     }
   }
 });
+
+class ElementHandle {
+  private selectorPath: string[];
+
+  constructor(selectorPath: string[]) {
+    this.selectorPath = selectorPath;
+  }
+
+  query(subSelector: string): ElementHandle {
+    return new ElementHandle([...this.selectorPath, subSelector]);
+  }
+
+  private get fullSelector(): string {
+    return this.selectorPath.join(' ');
+  }
+
+  async click(): Promise<any> {
+    return (globalThis as any).click(this.fullSelector);
+  }
+
+  async type(value: string): Promise<any> {
+    return (globalThis as any).type(this.fullSelector, value);
+  }
+
+  async scroll(): Promise<any> {
+    return (globalThis as any).scroll(this.fullSelector);
+  }
+
+  async hover(): Promise<any> {
+    return (globalThis as any).hover(this.fullSelector);
+  }
+
+  async getText(): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, 'textContent');
+  }
+
+  async getValue(): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, 'value');
+  }
+
+  async getAttribute(attributeName: string): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, `attr:${attributeName}`);
+  }
+
+  async isDisabled(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, 'disabled');
+    return !!res;
+  }
+
+  async isVisible(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, '__isVisible');
+    return !!res;
+  }
+
+  async exists(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, '__exists');
+    return !!res;
+  }
+}
+
+(globalThis as any).ElementHandle = ElementHandle;
+(globalThis as any).query = (selector: string) => {
+  return new ElementHandle([selector]);
+};
+
 export {};

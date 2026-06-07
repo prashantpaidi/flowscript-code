@@ -4,7 +4,7 @@ import { MESSAGE_TYPES } from '@flowscript/shared';
 /**
  * Queries the active tab in the current window.
  */
-export async function queryActiveTab(): Promise<browser.tabs.Tab> {
+export async function queryActiveTab(): Promise<Browser.tabs.Tab> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab || !tab.id) {
     throw new Error('No active web page found. Click on the tab you want to automate.');

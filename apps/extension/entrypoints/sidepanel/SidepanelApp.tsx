@@ -1,8 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Code2, Terminal, Sparkles } from 'lucide-react';
+import { Code2, Terminal, Sparkles, Zap } from 'lucide-react';
 
 import { useAutomationStore } from './store/useAutomationStore';
 import { Header } from './components/Header';
@@ -10,7 +10,9 @@ import { Toolbar } from './components/Toolbar';
 import { EditorTab } from './components/EditorTab';
 import { ConsoleTab } from './components/ConsoleTab';
 import { HelpersTab } from './components/HelpersTab';
+import { TriggersTab } from './components/TriggersTab';
 import { MESSAGE_TYPES } from '@flowscript/shared';
+import { getPendingTrigger, savePendingTrigger } from '@/utils/storage';
 
 export default function SidepanelApp() {
   const initStore = useAutomationStore((s) => s.initStore);
@@ -20,6 +22,10 @@ export default function SidepanelApp() {
   const addLog = useAutomationStore((s) => s.addLog);
   const setExecutionComplete = useAutomationStore((s) => s.setExecutionComplete);
   const handleActionRequest = useAutomationStore((s) => s.handleActionRequest);
+  const triggers = useAutomationStore((s) => s.triggers);
+  const validationError = useAutomationStore((s) => s.validationError);
+  const runTriggerFunction = useAutomationStore((s) => s.runTriggerFunction);
+  const isInitialized = useAutomationStore((s) => s.isInitialized);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -27,6 +33,12 @@ export default function SidepanelApp() {
   useEffect(() => {
     initStore();
   }, [initStore]);
+
+  // Connect to background script to signal that sidepanel is active/open
+  useEffect(() => {
+    const port = browser.runtime.connect({ name: 'sidepanel' });
+    return () => port.disconnect();
+  }, []);
 
   // Handle messages from sandbox iframe
   useEffect(() => {
@@ -47,6 +59,38 @@ export default function SidepanelApp() {
     return () => window.removeEventListener('message', handleSandboxMessage);
   }, [addLog, handleActionRequest, setExecutionComplete]);
 
+  // Handle messages from content script for trigger invocations
+  useEffect(() => {
+    const handleRuntimeMessage = (message: any, sender: any) => {
+      if (message && message.source === 'content' && message.type === 'RUN_TRIGGER_FUNCTION') {
+        const { functionName } = message.payload;
+        const senderTabId = sender.tab?.id;
+        if (senderTabId) {
+          runTriggerFunction(functionName, senderTabId, iframeRef.current);
+        }
+      }
+    };
+
+    browser.runtime.onMessage.addListener(handleRuntimeMessage);
+    return () => browser.runtime.onMessage.removeListener(handleRuntimeMessage);
+  }, [runTriggerFunction]);
+
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+
+  // Handle executing any pending triggers queued while sidepanel was closed
+  useEffect(() => {
+    if (iframeLoaded && isInitialized) {
+      const handlePending = async () => {
+        const pending = await getPendingTrigger();
+        if (pending) {
+          await savePendingTrigger(null);
+          runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current);
+        }
+      };
+      handlePending();
+    }
+  }, [iframeLoaded, isInitialized, runTriggerFunction]);
+
   return (
     <TooltipProvider>
       <div className="flex flex-col h-screen max-h-screen bg-background text-foreground select-none">
@@ -56,6 +100,7 @@ export default function SidepanelApp() {
           src={browser.runtime.getURL('/sandbox.html')}
           style={{ display: 'none' }}
           sandbox="allow-scripts"
+          onLoad={() => setIframeLoaded(true)}
         />
 
         {/* Header Section */}
@@ -67,25 +112,37 @@ export default function SidepanelApp() {
         {/* Tabs Control Area */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <div className="px-4 pt-2">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="editor" className="text-xs py-1.5 cursor-pointer">
-                <Code2 className="size-3.5 mr-1" />
+            <TabsList className="w-full grid grid-cols-4">
+              <TabsTrigger value="editor" className="text-[10px] py-1.5 cursor-pointer px-1">
+                <Code2 className="size-3 mr-0.5" />
                 Editor
               </TabsTrigger>
-              <TabsTrigger value="console" className="text-xs py-1.5 cursor-pointer relative">
-                <Terminal className="size-3.5 mr-1" />
+              <TabsTrigger value="console" className="text-[10px] py-1.5 cursor-pointer relative px-1">
+                <Terminal className="size-3 mr-0.5" />
                 Console
                 {logs.length > 0 && (
                   <Badge 
                     variant="secondary" 
-                    className="ml-1.5 h-4 min-w-4 px-1 rounded-full text-[9px] font-bold animate-in zoom-in duration-200"
+                    className="ml-1 h-3.5 min-w-3.5 px-0.5 rounded-full text-[8px] font-bold animate-in zoom-in duration-200 flex items-center justify-center"
                   >
                     {logs.length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="helpers" className="text-xs py-1.5 cursor-pointer">
-                <Sparkles className="size-3.5 mr-1" />
+              <TabsTrigger value="triggers" className="text-[10px] py-1.5 cursor-pointer relative px-1">
+                <Zap className="size-3 mr-0.5" />
+                Triggers
+                {!validationError && triggers.length > 0 && (
+                  <Badge 
+                    variant="outline" 
+                    className="ml-1 h-3.5 min-w-3.5 px-0.5 rounded-full text-[8px] font-bold border-primary text-primary bg-primary/10 flex items-center justify-center animate-in zoom-in duration-200"
+                  >
+                    {triggers.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="helpers" className="text-[10px] py-1.5 cursor-pointer px-1">
+                <Sparkles className="size-3 mr-0.5" />
                 Helpers
               </TabsTrigger>
             </TabsList>
@@ -99,6 +156,10 @@ export default function SidepanelApp() {
 
             <TabsContent value="console" className="h-full flex flex-col gap-2.5 m-0 data-[state=inactive]:hidden">
               <ConsoleTab />
+            </TabsContent>
+
+            <TabsContent value="triggers" className="h-full flex flex-col gap-3.5 m-0 data-[state=inactive]:hidden">
+              <TriggersTab iframeRef={iframeRef} />
             </TabsContent>
 
             <TabsContent value="helpers" className="h-full flex flex-col gap-3.5 m-0 data-[state=inactive]:hidden">
