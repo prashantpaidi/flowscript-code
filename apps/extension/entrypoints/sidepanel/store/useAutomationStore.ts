@@ -260,13 +260,14 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     try {
       const tab = await queryActiveTab();
       if (tab && tab.id) {
-        set({ isSelectingElement: true, selectedSelector: null });
         await browser.tabs.sendMessage(tab.id, {
           source: 'dashboard',
           type: MESSAGE_TYPES.START_DOM_SELECT
         });
+        set({ isSelectingElement: true, selectedSelector: null });
       }
     } catch (error: any) {
+      set({ isSelectingElement: false, selectedSelector: null });
       get().addLog({
         type: 'error',
         message: `Failed to start element selector: ${error?.message || String(error)}`,

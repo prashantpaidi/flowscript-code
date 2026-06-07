@@ -80,21 +80,32 @@ export function generatePrimarySelector(el: HTMLElement): string {
       if (current.id && typeof current.id === 'string') {
         const trimmedId = current.id.trim();
         if (trimmedId && !/^[0-9]/.test(trimmedId) && trimmedId.length < 50) {
-          path.unshift(`#${escapeCssSelector(trimmedId)}`);
-          break;
+          try {
+            const escaped = escapeCssSelector(trimmedId);
+            const parentSelector = `#${escaped}`;
+            if (document.querySelectorAll(parentSelector).length === 1) {
+              path.unshift(parentSelector);
+              break;
+            }
+          } catch (_) {}
         }
       }
       
-      let foundTestAttr = false;
+      let foundUniqueTestAttr = false;
       for (const attr of testAttrs) {
         const val = current.getAttribute(attr);
         if (val) {
-          path.unshift(`[${attr}="${escapeCssSelector(val)}"]`);
-          foundTestAttr = true;
-          break;
+          const parentSelector = `[${attr}="${escapeCssSelector(val)}"]`;
+          try {
+            if (document.querySelectorAll(parentSelector).length === 1) {
+              path.unshift(parentSelector);
+              foundUniqueTestAttr = true;
+              break;
+            }
+          } catch (_) {}
         }
       }
-      if (foundTestAttr) {
+      if (foundUniqueTestAttr) {
         break;
       }
     }

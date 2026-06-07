@@ -190,6 +190,16 @@ export function autoAwaitCommands(code: string): string {
     return placeholder;
   });
 
+  // 1b. Temporarily extract function and method declarations/signatures to avoid prepending await to them.
+  // This matches declarations/signatures using definition keywords or method definitions ending in '{'.
+  const defRegex = /\b(?:function|class|const|let|var|async|public|private|protected|static|get|set)\s+[\w$]+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{|\b(?:click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|sleep)\s*\([^)]*\)\s*(?::\s*[^{]+)?\{/g;
+
+  tempCode = tempCode.replace(defRegex, (match) => {
+    const placeholder = `${prefix}${placeholders.length}__`;
+    placeholders.push(match);
+    return placeholder;
+  });
+
   // 2. Prepend 'await ' to commands if they are not preceded by 'await' or definition keywords
   const actionRegex = /\b(function|class|const|let|var)\s+(\w+)\s*\(|\b(await\s+)?(?:(\b(click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|sleep)\b)|((?<!\.)[\w$]+(?:\s*\([^)]*\))?(?:\s*\.\s*[\w$]+(?:\s*\([^)]*\))?)*\s*\.\s*(?:click|type|scroll|hover|getText|getValue|getAttribute|isDisabled|isVisible|exists)))\s*\(/g;
 
@@ -203,8 +213,8 @@ export function autoAwaitCommands(code: string): string {
     return `await ${match}`;
   });
 
-  // 3. Restore the comments and string literals in the exact same positions
-  for (let idx = 0; idx < placeholders.length; idx++) {
+  // 3. Restore the comments, string literals, and definitions in reverse order to properly nest placeholders
+  for (let idx = placeholders.length - 1; idx >= 0; idx--) {
     tempCode = tempCode.replace(`${prefix}${idx}__`, () => placeholders[idx]);
   }
 

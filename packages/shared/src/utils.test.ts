@@ -364,6 +364,42 @@ describe('autoAwaitCommands', () => {
     const expected = "await query('.card').query('.title').getText();";
     expect(autoAwaitCommands(input)).toBe(expected);
   });
+
+  it('should not prepend await to class or object method declarations', () => {
+    const input = `
+      class Page {
+        click(selector) {
+          console.log(selector);
+        }
+        async sleep(ms) {
+          console.log(ms);
+        }
+      }
+      const obj = {
+        type(val) {
+          console.log(val);
+        }
+      };
+      click('#btn');
+    `;
+    const expected = `
+      class Page {
+        click(selector) {
+          console.log(selector);
+        }
+        async sleep(ms) {
+          console.log(ms);
+        }
+      }
+      const obj = {
+        type(val) {
+          console.log(val);
+        }
+      };
+      await click('#btn');
+    `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
 });
 
 
