@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers } from './utils.js';
+import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers, autoAwaitCommands } from './utils.js';
+
 
 describe('isValidAction', () => {
   it('should return true for a valid click action', () => {
@@ -290,4 +291,116 @@ describe('validateTriggers', () => {
     expect(validateTriggers(triggers)).toContain("Text expander collision");
   });
 });
+
+describe('autoAwaitCommands', () => {
+  it('should prepend await to global action functions', () => {
+    const input = "click('#btn'); type('#input', 'hello'); sleep(500);";
+    const expected = "await click('#btn'); await type('#input', 'hello'); await sleep(500);";
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should prepend await to ElementHandle method calls', () => {
+    const input = "query('.btn').click(); const text = el.getText();";
+    const expected = "await query('.btn').click(); const text = await el.getText();";
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should not duplicate await if already prepended', () => {
+    const input = "await click('#btn'); await query('.btn').click();";
+    const expected = "await click('#btn'); await query('.btn').click();";
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should ignore comments', () => {
+    const input = `
+      // click('#btn')
+      /* type('#input', 'hello') */
+      click('#btn');
+    `;
+    const expected = `
+      // click('#btn')
+      /* type('#input', 'hello') */
+      await click('#btn');
+    `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should ignore string literals', () => {
+    const input = `
+      const msg = "click('#btn')";
+      const msg2 = 'type("#input", "hello")';
+      const msg3 = \`sleep(100)\`;
+      click('#btn');
+    `;
+    const expected = `
+      const msg = "click('#btn')";
+      const msg2 = 'type("#input", "hello")';
+      const msg3 = \`sleep(100)\`;
+      await click('#btn');
+    `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should ignore function and variable definitions', () => {
+    const input = `
+      function click(selector) {
+        console.log(selector);
+      }
+      const myFunc = function sleep() {};
+      click('test');
+    `;
+    const expected = `
+      function click(selector) {
+        console.log(selector);
+      }
+      const myFunc = function sleep() {};
+      await click('test');
+    `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should support chained query method calls correctly', () => {
+    const input = "query('.card').query('.title').getText();";
+    const expected = "await query('.card').query('.title').getText();";
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should not prepend await to class or object method declarations', () => {
+    const input = `
+      class Page {
+        click(selector) {
+          console.log(selector);
+        }
+        async sleep(ms) {
+          console.log(ms);
+        }
+      }
+      const obj = {
+        type(val) {
+          console.log(val);
+        }
+      };
+      click('#btn');
+    `;
+    const expected = `
+      class Page {
+        click(selector) {
+          console.log(selector);
+        }
+        async sleep(ms) {
+          console.log(ms);
+        }
+      }
+      const obj = {
+        type(val) {
+          console.log(val);
+        }
+      };
+      await click('#btn');
+    `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+});
+
+
 

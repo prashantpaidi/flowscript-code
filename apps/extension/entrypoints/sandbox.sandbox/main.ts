@@ -1,4 +1,5 @@
-import { MESSAGE_TYPES, sleep, cleanScriptCode, parseTriggers } from '@flowscript/shared';
+import { MESSAGE_TYPES, sleep, cleanScriptCode, parseTriggers, autoAwaitCommands } from '@flowscript/shared';
+
 
 const pendingActions = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
 let actionIdCounter = 0;
@@ -131,10 +132,12 @@ window.addEventListener('message', async (event) => {
       lastCompiledCode = null;
       compiledFunctions = {};
       
+      const autoAwaitedCode = autoAwaitCommands(code);
+      
       // Wrap code in async function so await is allowed
       const executionFunction = new Function(`
         return (async () => {
-          ${code}
+          ${autoAwaitedCode}
         })();
       `);
       
@@ -163,6 +166,7 @@ window.addEventListener('message', async (event) => {
       if (code !== lastCompiledCode) {
         logToParent('log', 'Compiling script and caching trigger functions...');
         const cleanCode = cleanScriptCode(code);
+        const autoAwaitedCode = autoAwaitCommands(cleanCode);
         const triggers = parseTriggers(code);
         const uniqueFuncNames = Array.from(new Set(triggers.map(t => t.functionName)));
         
@@ -182,7 +186,7 @@ window.addEventListener('message', async (event) => {
         try {
           const executionFunction = new Function(`
             return (async () => {
-              ${cleanCode}
+              ${autoAwaitedCode}
               ${returnStatement}
             })();
           `);

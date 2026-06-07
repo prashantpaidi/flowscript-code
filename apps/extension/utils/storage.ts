@@ -44,13 +44,13 @@ export async function updatePreferences(updates: Partial<UserPreferences>): Prom
 const scriptStorage = storage.defineItem<string>('local:automation_script', {
   defaultValue: 
     `// FlowScript Automation Script\n` +
-    `// Write await click() or type() to automate tasks\n\n` +
+    `// Write click() or type() to automate tasks\n\n` +
     `// 1. Click a search box or input\n` +
-    `await click('input[type="search"]');\n\n` +
+    `click('input[type="search"]');\n\n` +
     `// 2. Wait 1 second\n` +
-    `await sleep(1000);\n\n` +
+    `sleep(1000);\n\n` +
     `// 3. Type into it\n` +
-    `await type('input[type="search"]', 'FlowScript Automation');\n`
+    `type('input[type="search"]', 'FlowScript Automation');\n`
 });
 
 /**

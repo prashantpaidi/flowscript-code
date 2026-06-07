@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle, Eye, Edit } from 'lucide-react';
+import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle, Eye, Edit, Sparkles, X, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -10,6 +10,9 @@ export function EditorTab() {
   const code = useAutomationStore((s) => s.code);
   const setCode = useAutomationStore((s) => s.setCode);
   const validationError = useAutomationStore((s) => s.validationError);
+  const selectedSelector = useAutomationStore((s) => s.selectedSelector);
+  const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
+  const isSelectingElement = useAutomationStore((s) => s.isSelectingElement);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +54,127 @@ export function EditorTab() {
           </AlertDescription>
         </Alert>
       )}
+
+      {isSelectingElement && (
+        <Alert className="py-2 animate-pulse border-sky-500 bg-sky-500/5">
+          <Loader2 className="size-4 animate-spin text-sky-500" />
+          <AlertTitle className="text-xs font-bold text-sky-500">Inspecting Page...</AlertTitle>
+          <AlertDescription className="text-[10px] mt-0.5 leading-relaxed text-sky-500/80">
+            Hover over elements on the web page to highlight them. Click any element to select, or press <kbd className="bg-muted px-1 rounded text-[9px] border border-border">Esc</kbd> to cancel.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {selectedSelector && (
+        <div className="border border-border rounded-lg bg-card p-3 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-primary">
+              <Sparkles className="size-3.5" />
+              Selected DOM Selector
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5 cursor-pointer text-muted-foreground hover:text-foreground"
+              onClick={() => setSelectedSelector(null)}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+          
+          <div className="flex flex-col gap-2.5">
+            {/* Primary Selector Row */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">Primary Selector</span>
+              <div className="flex items-center gap-1.5">
+                <code className="flex-1 text-[11px] font-mono bg-muted/40 p-1.5 rounded border border-border select-all truncate">
+                  {selectedSelector.primary}
+                </code>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="cursor-pointer text-[10px]"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedSelector.primary);
+                    }}
+                  >
+                    Copy
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="cursor-pointer text-[10px]"
+                    onClick={() => insertSnippet(`'${selectedSelector.primary}'`)}
+                  >
+                    Insert
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Fallback Selector Row */}
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground">Fallback Selector</span>
+              <div className="flex items-center gap-1.5">
+                <code className="flex-1 text-[11px] font-mono bg-muted/40 p-1.5 rounded border border-border select-all truncate">
+                  {selectedSelector.fallback}
+                </code>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="cursor-pointer text-[10px]"
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedSelector.fallback);
+                    }}
+                  >
+                    Copy
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    className="cursor-pointer text-[10px]"
+                    onClick={() => insertSnippet(`'${selectedSelector.fallback}'`)}
+                  >
+                    Insert
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Snippet Insertion Quick Buttons */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-border">
+              <span className="text-[9px] uppercase font-bold text-muted-foreground mr-1">Insert as:</span>
+              <Button
+                variant="secondary"
+                size="xs"
+                className="cursor-pointer text-[9px] h-6 px-2"
+                onClick={() => insertSnippet(`click('${selectedSelector.primary}');`)}
+              >
+                click()
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                className="cursor-pointer text-[9px] h-6 px-2"
+                onClick={() => insertSnippet(`const el = query('${selectedSelector.primary}');`)}
+              >
+                query()
+              </Button>
+              <Button
+                variant="secondary"
+                size="xs"
+                className="cursor-pointer text-[9px] h-6 px-2"
+                onClick={() => insertSnippet(`type('${selectedSelector.primary}', 'text');`)}
+              >
+                type()
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex border border-input rounded-md bg-card focus-within:ring-1 focus-within:ring-ring focus-within:border-ring overflow-hidden min-h-0">
         {/* Line Numbers column */}
         <div 
@@ -78,35 +202,35 @@ export function EditorTab() {
       <div className="flex flex-col gap-2">
         <span className="text-[10px] uppercase font-semibold text-muted-foreground">Quick Actions</span>
         <div className="flex flex-wrap gap-1.5">
-          <SnippetButton tooltip="Query an element dynamically to chain checks or actions" onClick={() => insertSnippet("const title = query('selector');\nconst text = await title.getText();")}>
+          <SnippetButton tooltip="Query an element dynamically to chain checks or actions" onClick={() => insertSnippet("const title = query('selector');\nconst text = title.getText();")}>
             <Eye className="size-3 text-muted-foreground" data-icon="inline-start" />
             query()
           </SnippetButton>
-          <SnippetButton tooltip="Update properties or attributes of an element" onClick={() => insertSnippet("await updateDom('selector', 'style.color', 'red');")}>
+          <SnippetButton tooltip="Update properties or attributes of an element" onClick={() => insertSnippet("updateDom('selector', 'style.color', 'red');")}>
             <Edit className="size-3 text-muted-foreground" data-icon="inline-start" />
             updateDom()
           </SnippetButton>
-          <SnippetButton tooltip="Click on an element matching a CSS selector" onClick={() => insertSnippet("await click('selector');")}>
+          <SnippetButton tooltip="Click on an element matching a CSS selector" onClick={() => insertSnippet("click('selector');")}>
             <MousePointerClick className="size-3 text-muted-foreground" data-icon="inline-start" />
             click()
           </SnippetButton>
-          <SnippetButton tooltip="Type text into a form input or text area" onClick={() => insertSnippet("await type('selector', 'text');")}>
+          <SnippetButton tooltip="Type text into a form input or text area" onClick={() => insertSnippet("type('selector', 'text');")}>
             <Keyboard className="size-3 text-muted-foreground" data-icon="inline-start" />
             type()
           </SnippetButton>
-          <SnippetButton tooltip="CDP Native click using browser debugger protocol (bypasses overrides)" onClick={() => insertSnippet("await nativeClick('selector');")}>
+          <SnippetButton tooltip="CDP Native click using browser debugger protocol (bypasses overrides)" onClick={() => insertSnippet("nativeClick('selector');")}>
             <MousePointerClick className="size-3 text-primary" data-icon="inline-start" />
             nativeClick()
           </SnippetButton>
-          <SnippetButton tooltip="CDP Native typing using browser debugger protocol (simulates real keystrokes)" onClick={() => insertSnippet("await nativeType('selector', 'text');")}>
+          <SnippetButton tooltip="CDP Native typing using browser debugger protocol (simulates real keystrokes)" onClick={() => insertSnippet("nativeType('selector', 'text');")}>
             <Keyboard className="size-3 text-primary" data-icon="inline-start" />
             nativeType()
           </SnippetButton>
-          <SnippetButton tooltip="Smooth scroll the page to center an element" onClick={() => insertSnippet("await scroll('selector');")}>
+          <SnippetButton tooltip="Smooth scroll the page to center an element" onClick={() => insertSnippet("scroll('selector');")}>
             <Scroll className="size-3 text-muted-foreground" data-icon="inline-start" />
             scroll()
           </SnippetButton>
-          <SnippetButton tooltip="Delay script execution by a number of milliseconds" onClick={() => insertSnippet("await sleep(1000);")}>
+          <SnippetButton tooltip="Delay script execution by a number of milliseconds" onClick={() => insertSnippet("sleep(1000);")}>
             <Clock className="size-3 text-muted-foreground" data-icon="inline-start" />
             sleep()
           </SnippetButton>

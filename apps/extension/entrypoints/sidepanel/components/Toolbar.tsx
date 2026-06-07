@@ -1,6 +1,6 @@
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
-import { Play, Square, Loader2 } from 'lucide-react';
+import { Play, Square, Loader2, MousePointerClick } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ToolbarProps {
@@ -11,6 +11,9 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
   const isRunning = useAutomationStore((s) => s.isRunning);
   const runScript = useAutomationStore((s) => s.runScript);
   const stopScript = useAutomationStore((s) => s.stopScript);
+  const isSelectingElement = useAutomationStore((s) => s.isSelectingElement);
+  const startSelectingElement = useAutomationStore((s) => s.startSelectingElement);
+  const stopSelectingElement = useAutomationStore((s) => s.stopSelectingElement);
 
   const handleRun = () => runScript(iframeRef.current);
   const handleStop = () => stopScript(iframeRef.current);
@@ -18,10 +21,30 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
     <div className="flex items-center gap-2 p-3 border-b border-border bg-card">
       <Tooltip>
         <TooltipTrigger asChild>
+          <div>
+            <Button 
+              onClick={isSelectingElement ? stopSelectingElement : startSelectingElement} 
+              disabled={isRunning} 
+              variant={isSelectingElement ? "destructive" : "outline"}
+              size="sm"
+              className={`cursor-pointer transition-all duration-200 ${isSelectingElement ? 'animate-pulse' : ''}`}
+            >
+              <MousePointerClick className="size-4" data-icon="inline-start" />
+              {isSelectingElement ? 'Cancel' : 'Inspect'}
+            </Button>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>{isSelectingElement ? 'Cancel element inspection' : 'Inspect element on the active page'}</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
           <div className="flex-1 flex">
             <Button 
               onClick={handleRun} 
-              disabled={isRunning} 
+              disabled={isRunning || isSelectingElement} 
               variant="default"
               size="sm"
               className="w-full cursor-pointer transition-all duration-200"
