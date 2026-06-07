@@ -65,26 +65,70 @@ export function HelpersTab() {
 
       <Card>
         <CardHeader className="p-3.5 pb-2">
+          <CardTitle className="text-xs font-bold">DOM Querying & Updates</CardTitle>
+          <CardDescription className="text-[10px]">
+            Read properties, styles, attributes, or update DOM dynamically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-3.5 pt-0 flex flex-col gap-2.5 text-xs">
+          <div>
+            <p className="font-semibold text-[11px] text-foreground">query(selector)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Returns an element handle supporting chainable methods:</p>
+            <code className="block bg-muted p-1 rounded font-mono text-[9px] mt-1 text-foreground leading-3.5 whitespace-pre">
+{`const card = query('.product-card');
+const text = await card.query('h1').getText();
+const isShowing = await card.isVisible();
+const attr = await card.getAttribute('href');`}
+            </code>
+          </div>
+          <div>
+            <p className="font-semibold text-[11px] text-foreground">updateDom(selector, path, value)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Directly update properties (including nested styles or classes).</p>
+            <code className="block bg-muted p-1 rounded font-mono text-[9px] mt-1 text-foreground leading-3.5 whitespace-pre">
+{`await updateDom('.status', 'textContent', 'Done!');
+await updateDom('.card', 'style.color', 'blue');`}
+            </code>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="p-3.5 pb-2">
           <CardTitle className="text-xs font-bold">Full Flow Example</CardTitle>
           <CardDescription className="text-[10px]">
-            Copy and run this full login example:
+            Dynamic scraping and conditional automation:
           </CardDescription>
         </CardHeader>
         <CardContent className="p-3.5 pt-0 flex flex-col gap-2">
-          <pre className="bg-muted p-2 rounded font-mono text-[9px] overflow-x-auto text-foreground leading-4">
-{`await click('#login-btn');
-await sleep(500);
-await type('#username', 'user1');
-await type('#password', 'pass123');
-await click('button[type="submit"]');`}
+          <pre className="bg-muted p-2 rounded font-mono text-[9px] overflow-x-auto text-foreground leading-3.5">
+{`const card = query('.product-card');
+const title = await card.query('h1.title').getText();
+const price = await card.query('.price-tag').getText();
+
+console.log("Scraped: " + title + " for " + price);
+
+const submitBtn = query('button[type="submit"]');
+const isBlocked = await submitBtn.isDisabled();
+
+if (isBlocked) {
+  console.log("Button is locked! Skipping click.");
+} else {
+  await submitBtn.click();
+}`}
           </pre>
           <Button 
             onClick={() => setCode(
-              `await click('#login-btn');\n` +
-              `await sleep(500);\n` +
-              `await type('#username', 'user1');\n` +
-              `await type('#password', 'pass123');\n` +
-              `await click('button[type="submit"]');\n`
+              `const card = query('.product-card');\n` +
+              `const title = await card.query('h1.title').getText();\n` +
+              `const price = await card.query('.price-tag').getText();\n\n` +
+              `console.log("Scraped: " + title + " for " + price);\n\n` +
+              `const submitBtn = query('button[type="submit"]');\n` +
+              `const isBlocked = await submitBtn.isDisabled();\n\n` +
+              `if (isBlocked) {\n` +
+              `  console.log("Button is locked! Skipping click.");\n` +
+              `} else {\n` +
+              `  await submitBtn.click();\n` +
+              `}\n`
             )}
             variant="outline" 
             size="xs" 

@@ -48,6 +48,34 @@ describe('isValidAction', () => {
     expect(isValidAction('click')).toBe(false);
     expect(isValidAction(123)).toBe(false);
   });
+
+  it('should return true for a valid readDom action', () => {
+    const action = { type: 'readDom', selector: '.title', property: 'textContent' };
+    expect(isValidAction(action)).toBe(true);
+  });
+
+  it('should return false for readDom action with missing or invalid property', () => {
+    const action1 = { type: 'readDom', selector: '.title' };
+    const action2 = { type: 'readDom', selector: '.title', property: '' };
+    const action3 = { type: 'readDom', selector: '.title', property: 123 };
+    expect(isValidAction(action1)).toBe(false);
+    expect(isValidAction(action2)).toBe(false);
+    expect(isValidAction(action3)).toBe(false);
+  });
+
+  it('should return true for a valid updateDom action', () => {
+    const action = { type: 'updateDom', selector: '.title', property: 'style.color', value: 'red' };
+    expect(isValidAction(action)).toBe(true);
+  });
+
+  it('should return false for updateDom action with missing/invalid property or value', () => {
+    const action1 = { type: 'updateDom', selector: '.title', value: 'red' };
+    const action2 = { type: 'updateDom', selector: '.title', property: '', value: 'red' };
+    const action3 = { type: 'updateDom', selector: '.title', property: 'style.color' };
+    expect(isValidAction(action1)).toBe(false);
+    expect(isValidAction(action2)).toBe(false);
+    expect(isValidAction(action3)).toBe(false);
+  });
 });
 
 describe('parseTriggers', () => {

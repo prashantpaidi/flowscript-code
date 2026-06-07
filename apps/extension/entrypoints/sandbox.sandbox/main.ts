@@ -44,6 +44,16 @@ const ACTION_REGISTRY: ActionRegistryItem[] = [
     name: 'nativeType',
     createPayload: (selector: string, value: string) => ({ type: 'nativeType', selector, value }),
     formatLog: (act) => `NATIVE TYPE: "${act.value}" into ${act.selector}`
+  },
+  {
+    name: 'readDom',
+    createPayload: (selector: string, property: string = 'textContent') => ({ type: 'readDom', selector, property }),
+    formatLog: (act) => `READ DOM: property "${act.property}" from ${act.selector}`
+  },
+  {
+    name: 'updateDom',
+    createPayload: (selector: string, property: string, value: any) => ({ type: 'updateDom', selector, property, value }),
+    formatLog: (act) => `UPDATE DOM: set "${act.property}" to "${typeof act.value === 'object' ? JSON.stringify(act.value) : act.value}" on ${act.selector}`
   }
 ];
 
@@ -222,4 +232,69 @@ window.addEventListener('message', async (event) => {
     }
   }
 });
+
+class ElementHandle {
+  private selectorPath: string[];
+
+  constructor(selectorPath: string[]) {
+    this.selectorPath = selectorPath;
+  }
+
+  query(subSelector: string): ElementHandle {
+    return new ElementHandle([...this.selectorPath, subSelector]);
+  }
+
+  private get fullSelector(): string {
+    return this.selectorPath.join(' ');
+  }
+
+  async click(): Promise<any> {
+    return (globalThis as any).click(this.fullSelector);
+  }
+
+  async type(value: string): Promise<any> {
+    return (globalThis as any).type(this.fullSelector, value);
+  }
+
+  async scroll(): Promise<any> {
+    return (globalThis as any).scroll(this.fullSelector);
+  }
+
+  async hover(): Promise<any> {
+    return (globalThis as any).hover(this.fullSelector);
+  }
+
+  async getText(): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, 'textContent');
+  }
+
+  async getValue(): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, 'value');
+  }
+
+  async getAttribute(attributeName: string): Promise<string> {
+    return (globalThis as any).readDom(this.fullSelector, attributeName);
+  }
+
+  async isDisabled(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, 'disabled');
+    return !!res;
+  }
+
+  async isVisible(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, '__isVisible');
+    return !!res;
+  }
+
+  async exists(): Promise<boolean> {
+    const res = await (globalThis as any).readDom(this.fullSelector, '__exists');
+    return !!res;
+  }
+}
+
+(globalThis as any).ElementHandle = ElementHandle;
+(globalThis as any).query = (selector: string) => {
+  return new ElementHandle([selector]);
+};
+
 export {};

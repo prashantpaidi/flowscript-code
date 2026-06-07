@@ -14,6 +14,14 @@ export function isValidAction(action: any): action is AutomationAction {
   if (action.type === 'type' || action.type === 'nativeType') {
     return typeof action.value === 'string';
   }
+
+  if (action.type === 'readDom') {
+    return typeof action.property === 'string' && action.property.trim().length > 0;
+  }
+
+  if (action.type === 'updateDom') {
+    return typeof action.property === 'string' && action.property.trim().length > 0 && action.value !== undefined;
+  }
   
   return true;
 }

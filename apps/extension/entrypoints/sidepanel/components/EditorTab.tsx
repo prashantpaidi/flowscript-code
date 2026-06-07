@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle } from 'lucide-react';
+import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle, Eye, Edit } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
@@ -78,6 +78,14 @@ export function EditorTab() {
       <div className="flex flex-col gap-2">
         <span className="text-[10px] uppercase font-semibold text-muted-foreground">Quick Actions</span>
         <div className="flex flex-wrap gap-1.5">
+          <SnippetButton tooltip="Query an element dynamically to chain checks or actions" onClick={() => insertSnippet("const title = query('selector');\nconst text = await title.getText();")}>
+            <Eye className="size-3 text-muted-foreground" data-icon="inline-start" />
+            query()
+          </SnippetButton>
+          <SnippetButton tooltip="Update properties or attributes of an element" onClick={() => insertSnippet("await updateDom('selector', 'style.color', 'red');")}>
+            <Edit className="size-3 text-muted-foreground" data-icon="inline-start" />
+            updateDom()
+          </SnippetButton>
           <SnippetButton tooltip="Click on an element matching a CSS selector" onClick={() => insertSnippet("await click('selector');")}>
             <MousePointerClick className="size-3 text-muted-foreground" data-icon="inline-start" />
             click()
