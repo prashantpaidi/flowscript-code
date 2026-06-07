@@ -12,6 +12,7 @@ import { ConsoleTab } from './components/ConsoleTab';
 import { HelpersTab } from './components/HelpersTab';
 import { TriggersTab } from './components/TriggersTab';
 import { MESSAGE_TYPES } from '@flowscript/shared';
+import { getPendingTrigger, savePendingTrigger } from '@/utils/storage';
 
 export default function SidepanelApp() {
   const initStore = useAutomationStore((s) => s.initStore);
@@ -22,6 +23,7 @@ export default function SidepanelApp() {
   const setExecutionComplete = useAutomationStore((s) => s.setExecutionComplete);
   const handleActionRequest = useAutomationStore((s) => s.handleActionRequest);
   const triggers = useAutomationStore((s) => s.triggers);
+  const validationError = useAutomationStore((s) => s.validationError);
   const runTriggerFunction = useAutomationStore((s) => s.runTriggerFunction);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -30,6 +32,12 @@ export default function SidepanelApp() {
   useEffect(() => {
     initStore();
   }, [initStore]);
+
+  // Connect to background script to signal that sidepanel is active/open
+  useEffect(() => {
+    const port = browser.runtime.connect({ name: 'sidepanel' });
+    return () => port.disconnect();
+  }, []);
 
   // Handle messages from sandbox iframe
   useEffect(() => {
@@ -52,16 +60,28 @@ export default function SidepanelApp() {
 
   // Handle messages from content script for trigger invocations
   useEffect(() => {
-    const handleRuntimeMessage = (message: any) => {
+    const handleRuntimeMessage = (message: any, sender: any) => {
       if (message && message.source === 'content' && message.type === 'RUN_TRIGGER_FUNCTION') {
         const { functionName } = message.payload;
-        runTriggerFunction(functionName, iframeRef.current);
+        const senderTabId = sender.tab?.id;
+        if (senderTabId) {
+          runTriggerFunction(functionName, senderTabId, iframeRef.current);
+        }
       }
     };
 
     browser.runtime.onMessage.addListener(handleRuntimeMessage);
     return () => browser.runtime.onMessage.removeListener(handleRuntimeMessage);
   }, [runTriggerFunction]);
+
+  // Handle executing any pending triggers queued while sidepanel was closed
+  const handleIframeLoad = async () => {
+    const pending = await getPendingTrigger();
+    if (pending) {
+      await savePendingTrigger(null);
+      runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current);
+    }
+  };
 
   return (
     <TooltipProvider>
@@ -72,6 +92,7 @@ export default function SidepanelApp() {
           src={browser.runtime.getURL('/sandbox.html')}
           style={{ display: 'none' }}
           sandbox="allow-scripts"
+          onLoad={handleIframeLoad}
         />
 
         {/* Header Section */}
@@ -103,7 +124,7 @@ export default function SidepanelApp() {
               <TabsTrigger value="triggers" className="text-[10px] py-1.5 cursor-pointer relative px-1">
                 <Zap className="size-3 mr-0.5" />
                 Triggers
-                {triggers.length > 0 && (
+                {!validationError && triggers.length > 0 && (
                   <Badge 
                     variant="outline" 
                     className="ml-1 h-3.5 min-w-3.5 px-0.5 rounded-full text-[8px] font-bold border-primary text-primary bg-primary/10 flex items-center justify-center animate-in zoom-in duration-200"

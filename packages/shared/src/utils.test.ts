@@ -164,6 +164,26 @@ describe('parseTriggers', () => {
       }
     ]);
   });
+
+  it('should handle block comments with text not starting with *', () => {
+    const code = `
+      // @trigger('hotkey', 'ctrl+shift+k')
+      /* 
+         This is a description that does not
+         start with asterisks on each line.
+      */
+      async function testBlockComment() {}
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([
+      {
+        type: 'hotkey',
+        triggerVal: 'ctrl+shift+k',
+        displayLabel: 'Ctrl + Shift + K',
+        functionName: 'testBlockComment'
+      }
+    ]);
+  });
 });
 
 describe('cleanScriptCode', () => {
@@ -200,12 +220,12 @@ describe('validateTriggers', () => {
     expect(validateTriggers(triggers)).toBeNull();
   });
 
-  it('should detect duplicate function names', () => {
+  it('should allow stacked triggers on the same function', () => {
     const triggers = [
       { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', functionName: 'test1' },
       { type: 'expander' as const, triggerVal: ';;tq', expansionText: 'thanks', functionName: 'test1' }
     ];
-    expect(validateTriggers(triggers)).toContain("Duplicate function");
+    expect(validateTriggers(triggers)).toBeNull();
   });
 
   it('should detect duplicate hotkeys', () => {

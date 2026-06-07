@@ -152,7 +152,7 @@ export function TriggersTab({ iframeRef }: TriggersTabProps) {
                 </div>
 
                 <Button 
-                  onClick={() => runTriggerFunction(trigger.functionName, iframeRef.current)}
+                  onClick={() => runTriggerFunction(trigger.functionName, undefined, iframeRef.current)}
                   variant="outline" 
                   size="icon" 
                   className="size-7 rounded-full text-muted-foreground hover:text-primary hover:border-primary shrink-0 transition-all duration-200 cursor-pointer"

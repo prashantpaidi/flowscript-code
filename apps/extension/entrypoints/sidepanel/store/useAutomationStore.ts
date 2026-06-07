@@ -3,6 +3,17 @@ import { MESSAGE_TYPES, parseTriggers, ParsedTrigger, validateTriggers } from '@
 import { getSavedScript, saveScript, saveTriggers } from '@/utils/storage';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
 
+let saveTriggersTimeout: any = null;
+
+const debouncedSaveTriggers = (triggers: ParsedTrigger[]) => {
+  if (saveTriggersTimeout) clearTimeout(saveTriggersTimeout);
+  saveTriggersTimeout = setTimeout(() => {
+    saveTriggers(triggers).catch((err) => {
+      console.error('Failed to save triggers to storage:', err);
+    });
+  }, 1000);
+};
+
 export interface ConsoleLog {
   type: 'log' | 'error' | 'step';
   message: string;
@@ -30,7 +41,7 @@ export interface AutomationState {
   runScript: (iframeEl: HTMLIFrameElement | null) => Promise<void>;
   stopScript: (iframeEl: HTMLIFrameElement | null) => void;
   handleActionRequest: (payload: { id: number; action: any }, iframeEl: HTMLIFrameElement | null) => Promise<void>;
-  runTriggerFunction: (functionName: string, iframeEl: HTMLIFrameElement | null) => Promise<void>;
+  runTriggerFunction: (functionName: string, tabId: number | undefined, iframeEl: HTMLIFrameElement | null) => Promise<void>;
 }
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
@@ -76,9 +87,10 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         timestamp: Date.now()
       });
     });
-    saveTriggers(valError ? [] : parsed).catch((err) => {
-      console.error('Failed to save triggers to storage:', err);
-    });
+    
+    if (!valError) {
+      debouncedSaveTriggers(parsed);
+    }
   },
 
   setActiveTab: (activeTab: string) => {
@@ -189,7 +201,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
   },
 
-  runTriggerFunction: async (functionName, iframeEl) => {
+  runTriggerFunction: async (functionName, tabId, iframeEl) => {
     if (get().isRunning) return;
 
     try {
@@ -202,8 +214,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         targetTabId: undefined
       });
 
-      const tab = await queryActiveTab();
-      set({ targetTabId: tab.id });
+      let finalTabId = tabId;
+      if (!finalTabId) {
+        const tab = await queryActiveTab();
+        finalTabId = tab.id;
+      }
+      set({ targetTabId: finalTabId });
 
       iframeEl?.contentWindow?.postMessage({
         type: 'RUN_TRIGGER',

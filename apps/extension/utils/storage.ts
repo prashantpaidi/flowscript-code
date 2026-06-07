@@ -101,4 +101,28 @@ export function watchTriggers(callback: (triggers: ParsedTrigger[] | null) => vo
   return triggersStorage.watch(callback);
 }
 
+export interface PendingTrigger {
+  functionName: string;
+  tabId: number;
+}
+
+const pendingTriggerStorage = storage.defineItem<PendingTrigger | null>('local:pending_trigger', {
+  defaultValue: null,
+});
+
+/**
+ * Gets the saved pending trigger from browser storage.
+ */
+export async function getPendingTrigger(): Promise<PendingTrigger | null> {
+  const value = await pendingTriggerStorage.getValue();
+  return value;
+}
+
+/**
+ * Saves the pending trigger to browser storage.
+ */
+export async function savePendingTrigger(pending: PendingTrigger | null): Promise<void> {
+  await pendingTriggerStorage.setValue(pending);
+}
+
 

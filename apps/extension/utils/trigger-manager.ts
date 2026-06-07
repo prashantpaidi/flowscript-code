@@ -25,6 +25,8 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
   }
 
   private handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.repeat) return;
+
     const target = event.target as HTMLElement;
     const isInput = target && (
       target.tagName === 'INPUT' || 
@@ -89,7 +91,9 @@ export class ExpanderTriggerStrategy implements TriggerStrategy {
   }
 
   update(triggers: ParsedTrigger[]): void {
-    this.activeExpanders = triggers.filter((t): t is ExpanderTrigger => t.type === 'expander');
+    this.activeExpanders = triggers
+      .filter((t): t is ExpanderTrigger => t.type === 'expander')
+      .sort((a, b) => b.triggerVal.length - a.triggerVal.length);
   }
 
   destroy(): void {

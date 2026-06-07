@@ -151,7 +151,6 @@ FlowScript validates all active triggers in real-time. If there is a validation 
 
 | Conflict Type | Description |
 | :--- | :--- |
-| **Duplicate Function** | The same function is registered to multiple triggers. |
 | **Hotkey Collision** | The same hotkey combination is assigned to more than one function. |
 | **Expander Collision** | The same expander shortcut is assigned to more than one function. |
 

@@ -55,10 +55,23 @@ export function parseTriggers(code: string): ParsedTrigger[] {
   const triggerRegex = /@trigger\s*\(\s*(['"`])(hotkey|expander)\1\s*,\s*(['"`])(.*?)\3\s*(?:,\s*(['"`])(.*?)\5\s*)?\)/;
   const functionRegex = /(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s+([a-zA-Z0-9_$]+)|(?:export\s+)?(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|function\b)/;
 
+  let inBlockComment = false;
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     
+    // Check block comment state
+    const startsBlock = line.startsWith('/*') || (inBlockComment && !line.includes('*/'));
+    const endsBlock = line.includes('*/');
+    const isCommentLine = inBlockComment || line.startsWith('//') || line.startsWith('/*') || line.startsWith('*') || endsBlock;
+
+    if (line.startsWith('/*') && !line.includes('*/')) {
+      inBlockComment = true;
+    } else if (line.includes('*/')) {
+      inBlockComment = false;
+    }
+
     const triggerMatch = line.match(triggerRegex);
     if (triggerMatch) {
       const type = triggerMatch[2] as 'hotkey' | 'expander';
@@ -82,7 +95,7 @@ export function parseTriggers(code: string): ParsedTrigger[] {
     }
     
     if (pendingTriggers.length > 0) {
-      if (line.startsWith('//') || line.startsWith('/*') || line.startsWith('*') || line.endsWith('*/')) {
+      if (isCommentLine) {
         continue;
       }
       
@@ -131,14 +144,8 @@ export function cleanScriptCode(code: string): string {
 export function validateTriggers(triggers: ParsedTrigger[]): string | null {
   const hotkeySeen = new Set<string>();
   const expanderSeen = new Set<string>();
-  const funcSeen = new Set<string>();
 
   for (const trigger of triggers) {
-    if (funcSeen.has(trigger.functionName)) {
-      return `Duplicate function: '${trigger.functionName}()' is registered to multiple triggers.`;
-    }
-    funcSeen.add(trigger.functionName);
-
     if (trigger.type === 'hotkey') {
       const key = trigger.triggerVal.toLowerCase().replace(/\s+/g, '');
       if (hotkeySeen.has(key)) {
