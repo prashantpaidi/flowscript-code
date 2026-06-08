@@ -39,6 +39,21 @@ export function FileTree() {
     return initialExpanded;
   });
 
+  // Auto-expand newly loaded folders from storage
+  useEffect(() => {
+    setExpanded(prev => {
+      let changed = false;
+      const next = { ...prev };
+      files.forEach(n => {
+        if (n.type === 'folder' && prev[n.id] === undefined) {
+          next[n.id] = true;
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [files]);
+
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');

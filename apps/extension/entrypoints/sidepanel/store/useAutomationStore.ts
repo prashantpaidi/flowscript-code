@@ -27,15 +27,20 @@ const debouncedSaveTriggers = (triggers: ParsedTrigger[]) => {
   }, 1000);
 };
 
-let saveFileContentTimeout: any = null;
+const saveFileContentTimeouts = new Map<string, any>();
 
 const debouncedSaveFileContent = (id: string, content: string) => {
-  if (saveFileContentTimeout) clearTimeout(saveFileContentTimeout);
-  saveFileContentTimeout = setTimeout(() => {
+  const existingTimeout = saveFileContentTimeouts.get(id);
+  if (existingTimeout) clearTimeout(existingTimeout);
+  
+  const timeout = setTimeout(() => {
+    saveFileContentTimeouts.delete(id);
     saveFileContent(id, content).catch((err) => {
       console.error('Failed to save file content to storage:', err);
     });
   }, 250);
+  
+  saveFileContentTimeouts.set(id, timeout);
 };
 
 const getDescendantIds = (nodes: FileNode[], parentId: string): string[] => {
@@ -99,6 +104,8 @@ export interface AutomationState {
   setActiveFileId: (id: string) => void | Promise<void>;
   setFileExplorerOpen: (open: boolean) => void;
 }
+
+let lastRequestedFileId: string | null = null;
 
 export const useAutomationStore = create<AutomationState>((set, get) => ({
   code: '',
@@ -324,7 +331,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
           type: 'file',
           parentId: null
         };
-        const finalFiles = [defaultFile];
+        const finalFiles = [...updatedFiles, defaultFile];
         set({
           files: finalFiles,
           activeFileId: defaultId,
@@ -341,11 +348,25 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   },
 
   setActiveFileId: async (id: string) => {
+    const activeId = get().activeFileId;
+    if (activeId) {
+      const timeout = saveFileContentTimeouts.get(activeId);
+      if (timeout) {
+        clearTimeout(timeout);
+        saveFileContentTimeouts.delete(activeId);
+        await saveFileContent(activeId, get().code).catch(console.error);
+      }
+    }
+
     const targetFile = get().files.find(n => n.id === id && n.type === 'file');
     if (!targetFile) return;
 
+    lastRequestedFileId = id;
+
     try {
       const content = await getFileContent(id);
+      if (lastRequestedFileId !== id) return;
+
       set({ activeFileId: id, code: content });
       saveActiveFileId(id).catch(console.error);
 
