@@ -629,10 +629,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
     let statement = '';
     if (action.type === 'click') {
-      statement = `click('${action.selector}');`;
+      const escapedSelector = JSON.stringify(action.selector);
+      statement = `click(${escapedSelector});`;
     } else if (action.type === 'type') {
-      const escapedValue = (action.value || '').replace(/'/g, "\\'");
-      statement = `type('${action.selector}', '${escapedValue}');`;
+      const escapedSelector = JSON.stringify(action.selector);
+      const escapedValue = JSON.stringify(action.value || '');
+      statement = `type(${escapedSelector}, ${escapedValue});`;
     }
 
     if (!statement) return;

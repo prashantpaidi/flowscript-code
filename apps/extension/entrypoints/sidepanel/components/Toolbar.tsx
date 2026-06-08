@@ -100,7 +100,7 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
           <div>
             <Button 
               onClick={handleStop} 
-              disabled={!isRunning || isRecording} 
+              disabled={!isRunning} 
               variant="destructive"
               size="sm"
               className="cursor-pointer transition-all duration-200"

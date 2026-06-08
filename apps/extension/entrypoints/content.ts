@@ -469,7 +469,8 @@ function handleRecordChange(e: Event) {
     target instanceof HTMLSelectElement
   ) {
     // Checkbox and radio change states are automated and simulated via clicks, ignore them here
-    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio')) {
+    // Also skip password fields to avoid capturing credentials in plaintext
+    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio' || target.type === 'password')) {
       return;
     }
 

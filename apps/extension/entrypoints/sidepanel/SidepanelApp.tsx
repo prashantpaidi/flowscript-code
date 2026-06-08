@@ -79,7 +79,14 @@ export default function SidepanelApp() {
       } else if (message.type === MESSAGE_TYPES.DOM_SELECT_ABORTED) {
         setSelectingState(false);
       } else if (message.type === MESSAGE_TYPES.RECORDED_ACTION) {
-        recordAction(message.payload);
+        const senderTabId = sender.tab?.id;
+        if (senderTabId) {
+          browser.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+            if (activeTab && activeTab.id === senderTabId) {
+              recordAction(message.payload);
+            }
+          }).catch(err => console.error('Failed to verify active tab for recording:', err));
+        }
       }
     };
 
