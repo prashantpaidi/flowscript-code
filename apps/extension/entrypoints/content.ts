@@ -468,18 +468,18 @@ function handleRecordChange(e: Event) {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement
   ) {
-    // Checkbox and radio change states are automated and simulated via clicks, ignore them here
-    // Also skip password fields to avoid capturing credentials in plaintext
-    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio' || target.type === 'password')) {
+    const isPassword = target instanceof HTMLInputElement && target.type === 'password';
+    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio')) {
       return;
     }
 
     const primary = generatePrimarySelector(target);
     if (primary) {
+      const value = isPassword ? 'YOUR_PASSWORD' : target.value;
       browser.runtime.sendMessage({
         source: 'content',
         type: MESSAGE_TYPES.RECORDED_ACTION,
-        payload: { type: 'type', selector: primary, value: target.value }
+        payload: { type: 'type', selector: primary, value }
       }).catch(err => console.warn('FlowScript: Failed to send recorded type action:', err));
     }
   }
