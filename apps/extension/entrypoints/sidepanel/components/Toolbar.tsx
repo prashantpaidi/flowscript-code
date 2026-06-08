@@ -1,6 +1,6 @@
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
-import { Play, Square, Loader2, MousePointerClick } from 'lucide-react';
+import { Play, Square, Loader2, MousePointerClick, Circle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ToolbarProps {
@@ -14,6 +14,9 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
   const isSelectingElement = useAutomationStore((s) => s.isSelectingElement);
   const startSelectingElement = useAutomationStore((s) => s.startSelectingElement);
   const stopSelectingElement = useAutomationStore((s) => s.stopSelectingElement);
+  const isRecording = useAutomationStore((s) => s.isRecording);
+  const startRecording = useAutomationStore((s) => s.startRecording);
+  const stopRecording = useAutomationStore((s) => s.stopRecording);
 
   const handleRun = () => runScript(iframeRef.current);
   const handleStop = () => stopScript(iframeRef.current);
@@ -24,7 +27,7 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
           <div>
             <Button 
               onClick={isSelectingElement ? stopSelectingElement : startSelectingElement} 
-              disabled={isRunning} 
+              disabled={isRunning || isRecording} 
               variant={isSelectingElement ? "destructive" : "outline"}
               size="sm"
               className={`cursor-pointer transition-all duration-200 ${isSelectingElement ? 'animate-pulse' : ''}`}
@@ -41,10 +44,34 @@ export function Toolbar({ iframeRef }: ToolbarProps) {
 
       <Tooltip>
         <TooltipTrigger asChild>
+          <div>
+            <Button 
+              onClick={isRecording ? stopRecording : startRecording} 
+              disabled={isRunning || isSelectingElement} 
+              variant={isRecording ? "destructive" : "outline"}
+              size="sm"
+              className={`cursor-pointer transition-all duration-200 ${
+                isRecording 
+                  ? 'animate-pulse border-red-500/50 text-red-500 bg-red-500/10 hover:bg-red-500/20' 
+                  : ''
+              }`}
+            >
+              <Circle className={`size-3.5 fill-red-500 text-red-500 ${isRecording ? 'animate-pulse' : ''}`} data-icon="inline-start" />
+              {isRecording ? 'Stop Rec' : 'Record'}
+            </Button>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p>{isRecording ? 'Stop recording interactions' : 'Record actions from the active page'}</p>
+        </TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
           <div className="flex-1 flex">
             <Button 
               onClick={handleRun} 
-              disabled={isRunning || isSelectingElement} 
+              disabled={isRunning || isSelectingElement || isRecording} 
               variant="default"
               size="sm"
               className="w-full cursor-pointer transition-all duration-200"

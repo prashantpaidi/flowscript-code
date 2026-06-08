@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { getPreferences, updatePreferences } from './storage.js';
+import { getPreferences, updatePreferences, getRecordingStatus, saveRecordingStatus } from './storage.js';
 
 describe('WXT Storage Utility', () => {
   beforeEach(() => {
@@ -27,5 +27,20 @@ describe('WXT Storage Utility', () => {
     await updatePreferences({ notificationsEnabled: false });
     const prefs = await getPreferences();
     expect(prefs.notificationsEnabled).toBe(false);
+  });
+
+  it('should default recording status to false', async () => {
+    const status = await getRecordingStatus();
+    expect(status).toBe(false);
+  });
+
+  it('should save and update recording status', async () => {
+    await saveRecordingStatus(true);
+    let status = await getRecordingStatus();
+    expect(status).toBe(true);
+
+    await saveRecordingStatus(false);
+    status = await getRecordingStatus();
+    expect(status).toBe(false);
   });
 });

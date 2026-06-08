@@ -11,7 +11,9 @@ import {
   saveActiveFileId,
   getFileContent,
   saveFileContent,
-  deleteFileContent
+  deleteFileContent,
+  getRecordingStatus,
+  saveRecordingStatus
 } from '@/utils/storage';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
 import { browser } from 'wxt/browser';
@@ -74,6 +76,7 @@ export interface AutomationState {
   isInitialized: boolean;
   isSelectingElement: boolean;
   selectedSelector: { primary: string; fallback: string } | null;
+  isRecording: boolean;
   
   // Virtual File Tree State
   files: FileNode[];
@@ -95,6 +98,9 @@ export interface AutomationState {
   stopSelectingElement: () => Promise<void>;
   setSelectedSelector: (selector: { primary: string; fallback: string } | null) => void;
   setSelectingState: (isSelecting: boolean) => void;
+  startRecording: () => Promise<void>;
+  stopRecording: () => Promise<void>;
+  recordAction: (action: { type: 'click' | 'type'; selector: string; value?: string }) => void;
 
   // Virtual File Tree Actions
   createFile: (name: string, parentId: string | null) => string;
@@ -120,6 +126,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   isInitialized: false,
   isSelectingElement: false,
   selectedSelector: null,
+  isRecording: false,
   
   // Virtual File Tree Defaults
   files: [],
@@ -128,6 +135,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   initStore: async () => {
     try {
+      const isRecording = await getRecordingStatus();
       const savedFiles = await getSavedFiles();
       const savedActiveId = await getActiveFileId();
 
@@ -153,6 +161,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
             code: activeContent,
             triggers: parsed,
             validationError: valError,
+            isRecording,
             isInitialized: true
           });
           saveActiveFileId(activeId).catch(console.error);
@@ -160,7 +169,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
             console.error('Failed to initialize triggers in storage:', err);
           });
         } else {
-          set({ files: savedFiles, isInitialized: true });
+          set({ files: savedFiles, isRecording, isInitialized: true });
         }
       } else {
         // Migration: read from legacy scriptStorage
@@ -193,6 +202,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
           code: defaultCode,
           triggers: parsed,
           validationError: valError,
+          isRecording,
           isInitialized: true
         });
 
@@ -583,5 +593,54 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   setSelectingState: (isSelecting: boolean) => {
     set({ isSelectingElement: isSelecting });
+  },
+
+  startRecording: async () => {
+    if (get().isRunning || get().isSelectingElement) return;
+    try {
+      await saveRecordingStatus(true);
+      set({ isRecording: true });
+    } catch (error: any) {
+      get().addLog({
+        type: 'error',
+        message: `Failed to start recording: ${error?.message || String(error)}`,
+        timestamp: Date.now()
+      });
+    }
+  },
+
+  stopRecording: async () => {
+    try {
+      await saveRecordingStatus(false);
+      set({ isRecording: false });
+    } catch (error: any) {
+      get().addLog({
+        type: 'error',
+        message: `Failed to stop recording: ${error?.message || String(error)}`,
+        timestamp: Date.now()
+      });
+    }
+  },
+
+  recordAction: (action) => {
+    if (!get().isRecording) return;
+    const activeId = get().activeFileId;
+    if (!activeId) return;
+
+    let statement = '';
+    if (action.type === 'click') {
+      const escapedSelector = JSON.stringify(action.selector);
+      statement = `click(${escapedSelector});`;
+    } else if (action.type === 'type') {
+      const escapedSelector = JSON.stringify(action.selector);
+      const escapedValue = JSON.stringify(action.value || '');
+      statement = `type(${escapedSelector}, ${escapedValue});`;
+    }
+
+    if (!statement) return;
+
+    const currentCode = get().code;
+    const separator = currentCode && !currentCode.endsWith('\n') ? '\n' : '';
+    get().setCode(currentCode + separator + statement + '\n');
   }
 }));

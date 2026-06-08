@@ -28,6 +28,7 @@ export default function SidepanelApp() {
   const isInitialized = useAutomationStore((s) => s.isInitialized);
   const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
   const setSelectingState = useAutomationStore((s) => s.setSelectingState);
+  const recordAction = useAutomationStore((s) => s.recordAction);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -77,12 +78,21 @@ export default function SidepanelApp() {
         setSelectingState(false);
       } else if (message.type === MESSAGE_TYPES.DOM_SELECT_ABORTED) {
         setSelectingState(false);
+      } else if (message.type === MESSAGE_TYPES.RECORDED_ACTION) {
+        const senderTabId = sender.tab?.id;
+        if (senderTabId) {
+          browser.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+            if (activeTab && activeTab.id === senderTabId) {
+              recordAction(message.payload);
+            }
+          }).catch(err => console.error('Failed to verify active tab for recording:', err));
+        }
       }
     };
 
     browser.runtime.onMessage.addListener(handleRuntimeMessage);
     return () => browser.runtime.onMessage.removeListener(handleRuntimeMessage);
-  }, [runTriggerFunction, setSelectedSelector, setSelectingState]);
+  }, [runTriggerFunction, setSelectedSelector, setSelectingState, recordAction]);
 
   const [iframeLoaded, setIframeLoaded] = useState(false);
 

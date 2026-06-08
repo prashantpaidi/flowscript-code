@@ -27,6 +27,7 @@ export function EditorTab() {
   const selectedSelector = useAutomationStore((s) => s.selectedSelector);
   const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
   const isSelectingElement = useAutomationStore((s) => s.isSelectingElement);
+  const isRecording = useAutomationStore((s) => s.isRecording);
   const fileExplorerOpen = useAutomationStore((s) => s.fileExplorerOpen);
   const setFileExplorerOpen = useAutomationStore((s) => s.setFileExplorerOpen);
   const files = useAutomationStore((s) => s.files);
@@ -84,6 +85,21 @@ export function EditorTab() {
           <AlertDescription className="text-[10px] mt-0.5 leading-relaxed text-sky-500/80">
             Hover over elements on the web page to highlight them. Click any element to select, or press <kbd className="bg-muted px-1 rounded text-[9px] border border-border">Esc</kbd> to cancel.
           </AlertDescription>
+        </Alert>
+      )}
+
+      {isRecording && (
+        <Alert className="py-2.5 animate-pulse border-red-500 bg-red-500/5 flex items-start">
+          <span className="relative flex size-2.5 mr-2.5 mt-1 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full size-2.5 bg-red-500"></span>
+          </span>
+          <div>
+            <AlertTitle className="text-xs font-bold text-red-500">Recording Actions...</AlertTitle>
+            <AlertDescription className="text-[10px] mt-0.5 leading-relaxed text-red-500/80">
+              Interact with the active page. Clicks and text inputs will automatically be appended to your script in real-time.
+            </AlertDescription>
+          </div>
         </Alert>
       )}
 
