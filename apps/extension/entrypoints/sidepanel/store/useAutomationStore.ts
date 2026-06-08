@@ -311,6 +311,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     saveFiles(updatedFiles).catch(console.error);
 
     idsToDelete.forEach(deletedId => {
+      const timeout = saveFileContentTimeouts.get(deletedId);
+      if (timeout) {
+        clearTimeout(timeout);
+        saveFileContentTimeouts.delete(deletedId);
+      }
+
       const deletedNode = currentFiles.find(n => n.id === deletedId);
       if (deletedNode && deletedNode.type === 'file') {
         deleteFileContent(deletedId).catch(console.error);
