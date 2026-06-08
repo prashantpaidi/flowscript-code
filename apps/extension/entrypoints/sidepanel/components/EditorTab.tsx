@@ -2,9 +2,23 @@ import React, { useRef } from 'react';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { MousePointerClick, Keyboard, Scroll, Clock, Terminal, AlertCircle, Eye, Edit, Sparkles, X, Loader2 } from 'lucide-react';
+import { 
+  MousePointerClick, 
+  Keyboard, 
+  Scroll, 
+  Clock, 
+  Terminal, 
+  AlertCircle, 
+  Eye, 
+  Edit, 
+  Sparkles, 
+  X, 
+  Loader2,
+  Sidebar
+} from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { FileTree } from './FileTree';
 
 export function EditorTab() {
   const code = useAutomationStore((s) => s.code);
@@ -13,6 +27,14 @@ export function EditorTab() {
   const selectedSelector = useAutomationStore((s) => s.selectedSelector);
   const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
   const isSelectingElement = useAutomationStore((s) => s.isSelectingElement);
+  const fileExplorerOpen = useAutomationStore((s) => s.fileExplorerOpen);
+  const setFileExplorerOpen = useAutomationStore((s) => s.setFileExplorerOpen);
+  const files = useAutomationStore((s) => s.files);
+  const activeFileId = useAutomationStore((s) => s.activeFileId);
+
+  const activeFile = files.find(f => f.id === activeFileId);
+  const activeFileName = activeFile ? activeFile.name : '';
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
 
@@ -175,27 +197,70 @@ export function EditorTab() {
         </div>
       )}
 
-      <div className="flex-1 flex border border-input rounded-md bg-card focus-within:ring-1 focus-within:ring-ring focus-within:border-ring overflow-hidden min-h-0">
-        {/* Line Numbers column */}
-        <div 
-          ref={lineNumbersRef}
-          className="code-editor-lines flex flex-col text-right text-muted-foreground/40 bg-muted/30 select-none border-r border-border pl-3 pr-2 py-3.5 text-[11px] overflow-hidden"
-        >
-          {lineNumbers.map((num) => (
-            <div key={num} className="h-[18px]">{num}</div>
-          ))}
+      <div className="flex-1 flex flex-col border border-input rounded-md bg-card focus-within:ring-1 focus-within:ring-ring focus-within:border-ring overflow-hidden min-h-0">
+        {/* Editor Tab Header */}
+        <div className="h-8.5 border-b border-border bg-muted/10 flex items-center justify-between px-3 select-none shrink-0">
+          <div className="flex items-center gap-2">
+            {/* Toggle Sidebar Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setFileExplorerOpen(!fileExplorerOpen)}
+                  className="size-5.5 text-muted-foreground hover:text-foreground cursor-pointer hover:bg-muted/50 rounded"
+                >
+                  <Sidebar className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-[10px] p-1 px-1.5">
+                {fileExplorerOpen ? 'Hide File Explorer' : 'Show File Explorer'}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Active File Indicator */}
+            {activeFileName && (
+              <div className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
+                <span className="text-muted-foreground/30">/</span>
+                <span className="text-foreground font-semibold">{activeFileName}</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Textarea Code Input */}
-        <Textarea
-          ref={textareaRef}
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onScroll={handleScroll}
-          className="flex-1 h-full code-editor-textarea bg-transparent text-foreground p-3.5 border-none outline-none resize-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent text-[11px] font-mono leading-[18px] overflow-y-auto"
-          placeholder="// Write code here..."
-          spellCheck="false"
-        />
+        {/* Inner Content Area (FileTree + Code Editor) */}
+        <div className="flex-1 flex min-h-0 overflow-hidden relative">
+          {/* Sidebar File Explorer */}
+          {fileExplorerOpen && (
+            <div className="w-48 border-r border-border p-3.5 flex flex-col bg-muted/5 shrink-0 min-h-0 overflow-hidden">
+              <FileTree />
+            </div>
+          )}
+
+          {/* Main Editor Component */}
+          <div className="flex-1 flex min-w-0 overflow-hidden">
+            {/* Line Numbers column */}
+            <div 
+              ref={lineNumbersRef}
+              className="code-editor-lines flex flex-col text-right text-muted-foreground/40 bg-muted/30 select-none border-r border-border pl-3 pr-2 py-3.5 text-[11px] overflow-hidden"
+            >
+              {lineNumbers.map((num) => (
+                <div key={num} className="h-[18px]">{num}</div>
+              ))}
+            </div>
+
+            {/* Textarea Code Input */}
+            <Textarea
+              ref={textareaRef}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onScroll={handleScroll}
+              className="flex-1 h-full code-editor-textarea bg-transparent text-foreground p-3.5 border-none outline-none resize-none focus:ring-0 focus-visible:ring-0 focus-visible:border-transparent text-[11px] font-mono leading-[18px] overflow-y-auto"
+              placeholder="// Write code here..."
+              spellCheck="false"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Quick Actions Panel */}

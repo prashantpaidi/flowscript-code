@@ -1,6 +1,14 @@
 import { storage } from 'wxt/utils/storage';
 import { ParsedTrigger } from '@flowscript/shared';
 
+export interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  parentId: string | null;
+  content?: string;
+}
+
 export interface UserPreferences {
   theme: 'light' | 'dark';
   notificationsEnabled: boolean;
@@ -125,4 +133,70 @@ export async function savePendingTrigger(pending: PendingTrigger | null): Promis
   await pendingTriggerStorage.setValue(pending);
 }
 
+const filesStorage = storage.defineItem<FileNode[]>('local:automation_files', {
+  defaultValue: [],
+});
+
+const activeFileIdStorage = storage.defineItem<string | null>('local:active_file_id', {
+  defaultValue: null,
+});
+
+/**
+ * Gets the list of files from storage.
+ */
+export async function getSavedFiles(): Promise<FileNode[]> {
+  const value = await filesStorage.getValue();
+  return value!;
+}
+
+/**
+ * Saves the list of files to storage.
+ */
+export async function saveFiles(files: FileNode[]): Promise<void> {
+  await filesStorage.setValue(files);
+}
+
+/**
+ * Gets the active file ID from storage.
+ */
+export async function getActiveFileId(): Promise<string | null> {
+  const value = await activeFileIdStorage.getValue();
+  return value;
+}
+
+/**
+ * Saves the active file ID to storage.
+ */
+export async function saveActiveFileId(id: string | null): Promise<void> {
+  await activeFileIdStorage.setValue(id);
+}
+
+/**
+ * Gets the contents of a specific file by ID.
+ */
+export async function getFileContent(id: string): Promise<string> {
+  const contentStorage = storage.defineItem<string>(`local:file_content_${id}`, {
+    defaultValue: '',
+  });
+  const value = await contentStorage.getValue();
+  return value!;
+}
+
+/**
+ * Saves the contents of a specific file by ID.
+ */
+export async function saveFileContent(id: string, content: string): Promise<void> {
+  const contentStorage = storage.defineItem<string>(`local:file_content_${id}`, {
+    defaultValue: '',
+  });
+  await contentStorage.setValue(content);
+}
+
+/**
+ * Deletes the contents of a specific file by ID.
+ */
+export async function deleteFileContent(id: string): Promise<void> {
+  const contentStorage = storage.defineItem<string>(`local:file_content_${id}`);
+  await contentStorage.setValue(null as any);
+}
 
