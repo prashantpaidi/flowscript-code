@@ -200,3 +200,30 @@ export async function deleteFileContent(id: string): Promise<void> {
   await contentStorage.setValue(null as any);
 }
 
+const recordingStorage = storage.defineItem<boolean>('local:is_recording', {
+  defaultValue: false,
+});
+
+/**
+ * Gets the recording status from local storage.
+ */
+export async function getRecordingStatus(): Promise<boolean> {
+  const value = await recordingStorage.getValue();
+  return !!value;
+}
+
+/**
+ * Saves the recording status to local storage.
+ */
+export async function saveRecordingStatus(isRecording: boolean): Promise<void> {
+  await recordingStorage.setValue(isRecording);
+}
+
+/**
+ * Watches for changes to the recording status in local storage.
+ */
+export function watchRecordingStatus(callback: (isRecording: boolean | null) => void): () => void {
+  return recordingStorage.watch(callback);
+}
+
+

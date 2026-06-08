@@ -1,6 +1,6 @@
 import { MESSAGE_TYPES } from '@flowscript/shared';
 import { performNativeClick, performNativeType } from '@/utils/debugger-actions';
-import { getSavedTriggers, watchTriggers } from '@/utils/storage';
+import { getSavedTriggers, watchTriggers, getRecordingStatus, watchRecordingStatus } from '@/utils/storage';
 import { TriggerManager } from '@/utils/trigger-manager';
 import { generatePrimarySelector, generateFallbackSelector } from '@/utils/selector-generator';
 
@@ -25,6 +25,22 @@ export default defineContentScript({
         } else if (message.type === MESSAGE_TYPES.STOP_DOM_SELECT) {
           cleanupDomSelector();
         }
+      }
+    });
+
+    // Initialize recording status from storage
+    getRecordingStatus().then((isRecordingActive) => {
+      if (isRecordingActive) {
+        startRecording();
+      }
+    }).catch(err => console.error('FlowScript: Failed to check recording status:', err));
+
+    // Watch for recording status changes
+    watchRecordingStatus((isRecordingActive) => {
+      if (isRecordingActive) {
+        startRecording();
+      } else {
+        stopRecording();
       }
     });
   },
@@ -88,7 +104,11 @@ const actionHandlers: Record<string, ActionHandler> = {
   type: (element, action) => {
     const value = action.value || '';
     element.focus();
-    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+    if (
+      element instanceof HTMLInputElement ||
+      element instanceof HTMLTextAreaElement ||
+      element instanceof HTMLSelectElement
+    ) {
       element.value = value;
     } else {
       element.innerText = value;
@@ -391,6 +411,76 @@ function handleKeyDown(e: KeyboardEvent) {
     }).catch(err => console.warn('FlowScript: Failed to send select abort:', err));
 
     cleanupDomSelector();
+  }
+}
+
+let recording = false;
+
+function startRecording() {
+  if (recording) return;
+  recording = true;
+  console.log('FlowScript: Recording started.');
+
+  window.addEventListener('click', handleRecordClick, true);
+  window.addEventListener('change', handleRecordChange, true);
+}
+
+function stopRecording() {
+  if (!recording) return;
+  recording = false;
+  console.log('FlowScript: Recording stopped.');
+
+  window.removeEventListener('click', handleRecordClick, true);
+  window.removeEventListener('change', handleRecordChange, true);
+}
+
+function handleRecordClick(e: MouseEvent) {
+  if (!recording) return;
+  const target = e.target as HTMLElement;
+  if (!target) return;
+
+  // Filter out clicks on text inputs, textareas, and selects to avoid double actions during typing/selecting
+  const isTextInput = target instanceof HTMLTextAreaElement || 
+    (target instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'reset', 'image'].includes(target.type));
+  const isSelect = target instanceof HTMLSelectElement;
+
+  if (isTextInput || isSelect) {
+    return;
+  }
+
+  const primary = generatePrimarySelector(target);
+  if (primary) {
+    browser.runtime.sendMessage({
+      source: 'content',
+      type: MESSAGE_TYPES.RECORDED_ACTION,
+      payload: { type: 'click', selector: primary }
+    }).catch(err => console.warn('FlowScript: Failed to send recorded click:', err));
+  }
+}
+
+function handleRecordChange(e: Event) {
+  if (!recording) return;
+  const target = e.target as HTMLElement;
+  if (!target) return;
+
+  if (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
+  ) {
+    // Checkbox and radio change states are automated and simulated via clicks, ignore them here
+    if (target instanceof HTMLInputElement && (target.type === 'checkbox' || target.type === 'radio')) {
+      return;
+    }
+
+    const primary = generatePrimarySelector(target);
+    if (primary) {
+      browser.runtime.sendMessage({
+        source: 'content',
+        type: MESSAGE_TYPES.RECORDED_ACTION,
+        payload: { type: 'type', selector: primary, value: target.value }
+      }).catch(err => console.warn('FlowScript: Failed to send recorded type action:', err));
+    }
   }
 }
 
