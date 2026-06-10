@@ -65,6 +65,31 @@ export function HelpersTab() {
 
       <Card>
         <CardHeader className="p-3.5 pb-2">
+          <CardTitle className="text-xs font-bold">Native Keyboard Control</CardTitle>
+          <CardDescription className="text-[10px]">
+            Natively type anywhere or execute keyboard hotkeys.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-3.5 pt-0 flex flex-col gap-2.5 text-xs">
+          <div>
+            <p className="font-semibold text-[11px] text-foreground">typeActive(text)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Types text into the currently focused element.</p>
+            <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
+              typeActive('Hello world');
+            </code>
+          </div>
+          <div>
+            <p className="font-semibold text-[11px] text-foreground">press(keyCombo)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Simulates key combinations (e.g. Enter, Tab, Ctrl+S).</p>
+            <code className="block bg-muted p-1 rounded font-mono text-[10px] mt-1 text-foreground">
+              press('Ctrl+S');
+            </code>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="p-3.5 pb-2">
           <CardTitle className="text-xs font-bold">DOM Querying & Updates</CardTitle>
           <CardDescription className="text-[10px]">
             Read properties, styles, attributes, or update DOM dynamically.

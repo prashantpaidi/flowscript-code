@@ -76,7 +76,12 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
     if (event.altKey !== altRequired) return false;
     if (event.metaKey !== metaRequired) return false;
 
-    return event.key.toLowerCase() === targetKey;
+    let normalizedTargetKey = targetKey;
+    if (normalizedTargetKey === 'space') {
+      normalizedTargetKey = ' ';
+    }
+
+    return event.key.toLowerCase() === normalizedTargetKey;
   }
 }
 

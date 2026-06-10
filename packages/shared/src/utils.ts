@@ -7,11 +7,14 @@ export function isValidAction(action: any): action is AutomationAction {
   if (!action || typeof action !== 'object') return false;
   
   const hasValidType = (VALID_ACTION_TYPES as readonly string[]).includes(action.type);
-  const hasValidSelector = typeof action.selector === 'string' && action.selector.trim().length > 0;
+  if (!hasValidType) return false;
+
+  const isGlobalAction = action.type === 'typeActive' || action.type === 'press';
+  const hasValidSelector = isGlobalAction || (typeof action.selector === 'string' && action.selector.trim().length > 0);
   
-  if (!hasValidType || !hasValidSelector) return false;
+  if (!hasValidSelector) return false;
   
-  if (action.type === 'type' || action.type === 'nativeType') {
+  if (action.type === 'type' || action.type === 'nativeType' || action.type === 'typeActive' || action.type === 'press') {
     return typeof action.value === 'string';
   }
 
@@ -192,7 +195,7 @@ export function autoAwaitCommands(code: string): string {
 
   // 1b. Temporarily extract function and method declarations/signatures to avoid prepending await to them.
   // This matches declarations/signatures using definition keywords or method definitions ending in '{'.
-  const defRegex = /\b(?:function|class|const|let|var|async|public|private|protected|static|get|set)\s+[\w$]+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{|\b(?:click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|sleep)\s*\([^)]*\)\s*(?::\s*[^{]+)?\{/g;
+  const defRegex = /\b(?:function|class|const|let|var|async|public|private|protected|static|get|set)\s+[\w$]+\s*\([^)]*\)\s*(?::\s*[^{]+)?\{|\b(?:click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|typeActive|press|sleep)\s*\([^)]*\)\s*(?::\s*[^{]+)?\{/g;
 
   tempCode = tempCode.replace(defRegex, (match) => {
     const placeholder = `${prefix}${placeholders.length}__`;
@@ -201,7 +204,7 @@ export function autoAwaitCommands(code: string): string {
   });
 
   // 2. Prepend 'await ' to commands if they are not preceded by 'await' or definition keywords
-  const actionRegex = /\b(function|class|const|let|var)\s+(\w+)\s*\(|\b(await\s+)?(?:(\b(click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|sleep)\b)|((?<!\.)[\w$]+(?:\s*\([^)]*\))?(?:\s*\.\s*[\w$]+(?:\s*\([^)]*\))?)*\s*\.\s*(?:click|type|scroll|hover|getText|getValue|getAttribute|isDisabled|isVisible|exists)))\s*\(/g;
+  const actionRegex = /\b(function|class|const|let|var)\s+(\w+)\s*\(|\b(await\s+)?(?:(\b(click|type|scroll|hover|nativeClick|nativeType|readDom|updateDom|typeActive|press|sleep)\b)|((?<!\.)[\w$]+(?:\s*\([^)]*\))?(?:\s*\.\s*[\w$]+(?:\s*\([^)]*\))?)*\s*\.\s*(?:click|type|scroll|hover|getText|getValue|getAttribute|isDisabled|isVisible|exists)))\s*\(/g;
 
   tempCode = tempCode.replace(actionRegex, (match, defKeyword, defName, awaitKeyword) => {
     if (defKeyword) {
