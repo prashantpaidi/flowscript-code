@@ -32,3 +32,5 @@ web-ext.config.ts
 *.sln
 *.sw?
 .agent/*
+test-results/
+playwright-report/
