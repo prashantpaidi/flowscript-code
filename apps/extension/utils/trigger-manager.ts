@@ -1,4 +1,4 @@
-import { ParsedTrigger, HotkeyTrigger, ExpanderTrigger } from '@flowscript/shared';
+import { ParsedTrigger, HotkeyTrigger, ExpanderTrigger, matchUrlPattern } from '@flowscript/shared';
 
 export interface TriggerStrategy {
   setup(executeCallback: (functionName: string) => void): void;
@@ -16,7 +16,10 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
   }
 
   update(triggers: ParsedTrigger[]): void {
-    this.activeHotkeys = triggers.filter((t): t is HotkeyTrigger => t.type === 'hotkey');
+    const currentUrl = window.location.href;
+    this.activeHotkeys = triggers
+      .filter((t): t is HotkeyTrigger => t.type === 'hotkey')
+      .filter((t) => !t.urlPattern || matchUrlPattern(t.urlPattern, currentUrl));
   }
 
   destroy(): void {
@@ -96,8 +99,10 @@ export class ExpanderTriggerStrategy implements TriggerStrategy {
   }
 
   update(triggers: ParsedTrigger[]): void {
+    const currentUrl = window.location.href;
     this.activeExpanders = triggers
       .filter((t): t is ExpanderTrigger => t.type === 'expander')
+      .filter((t) => !t.urlPattern || matchUrlPattern(t.urlPattern, currentUrl))
       .sort((a, b) => b.triggerVal.length - a.triggerVal.length);
   }
 
@@ -149,6 +154,52 @@ export class ExpanderTriggerStrategy implements TriggerStrategy {
   };
 }
 
+export class LoadTriggerStrategy implements TriggerStrategy {
+  private activeLoadTriggers: ParsedTrigger[] = [];
+  private executeCallback: ((functionName: string) => void) | null = null;
+  private executedFunctions = new Set<string>();
+  private lastUrl = '';
+
+  setup(executeCallback: (functionName: string) => void): void {
+    this.executeCallback = executeCallback;
+    this.executedFunctions.clear();
+    this.lastUrl = window.location.href;
+    this.checkAndExecute();
+  }
+
+  update(triggers: ParsedTrigger[]): void {
+    const currentUrl = window.location.href;
+    if (currentUrl !== this.lastUrl) {
+      this.executedFunctions.clear();
+      this.lastUrl = currentUrl;
+    }
+    this.activeLoadTriggers = triggers
+      .filter((t) => t.type === 'load')
+      .filter((t) => t.urlPattern && matchUrlPattern(t.urlPattern, currentUrl));
+    
+    this.checkAndExecute();
+  }
+
+  destroy(): void {
+    this.executeCallback = null;
+    this.activeLoadTriggers = [];
+    this.executedFunctions.clear();
+    this.lastUrl = '';
+  }
+
+  private checkAndExecute(): void {
+    if (!this.executeCallback || this.activeLoadTriggers.length === 0) {
+      return;
+    }
+    for (const trigger of this.activeLoadTriggers) {
+      if (!this.executedFunctions.has(trigger.functionName)) {
+        this.executedFunctions.add(trigger.functionName);
+        this.executeCallback(trigger.functionName);
+      }
+    }
+  }
+}
+
 export class TriggerManager {
   private strategies: TriggerStrategy[] = [];
   private onTriggerFired: (functionName: string) => void;
@@ -157,7 +208,8 @@ export class TriggerManager {
     this.onTriggerFired = onTriggerFired;
     this.strategies = [
       new HotkeyTriggerStrategy(),
-      new ExpanderTriggerStrategy()
+      new ExpanderTriggerStrategy(),
+      new LoadTriggerStrategy()
     ];
   }
 

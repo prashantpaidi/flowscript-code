@@ -1,4 +1,4 @@
-import { MESSAGE_TYPES } from '@flowscript/shared';
+import { MESSAGE_TYPES, ParsedTrigger } from '@flowscript/shared';
 import { performNativeClick, performNativeType, performNativeTypeActive, performNativePress } from '@/utils/debugger-actions';
 import { getSavedTriggers, watchTriggers, getRecordingStatus, watchRecordingStatus } from '@/utils/storage';
 import { TriggerManager } from '@/utils/trigger-manager';
@@ -257,18 +257,30 @@ async function initTriggers() {
   triggerManager = new TriggerManager(executeTriggerFunction);
   triggerManager.setup();
 
+  let currentTriggers: ParsedTrigger[] = [];
+
   try {
-    const triggers = await getSavedTriggers();
-    if (triggers) {
-      triggerManager.update(triggers);
-    }
+    currentTriggers = await getSavedTriggers() || [];
+    triggerManager.update(currentTriggers);
   } catch (error) {
     console.error('FlowScript: Failed to initialize triggers:', error);
   }
 
   watchTriggers((newTriggers) => {
-    triggerManager?.update(newTriggers || []);
+    currentTriggers = newTriggers || [];
+    triggerManager?.update(currentTriggers);
   });
+
+  // Watch for client-side navigation (URL changes in SPA) to keep triggers updated
+  let lastUrl = window.location.href;
+  setInterval(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      if (triggerManager && currentTriggers.length > 0) {
+        triggerManager.update(currentTriggers);
+      }
+    }
+  }, 500);
 }
 
 async function executeTriggerFunction(functionName: string) {
