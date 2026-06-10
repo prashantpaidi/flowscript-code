@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers, autoAwaitCommands } from './utils.js';
+import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers, autoAwaitCommands } from '../utils.js';
 
 
 describe('isValidAction', () => {
@@ -401,6 +401,3 @@ describe('autoAwaitCommands', () => {
     expect(autoAwaitCommands(input)).toBe(expected);
   });
 });
-
-
-

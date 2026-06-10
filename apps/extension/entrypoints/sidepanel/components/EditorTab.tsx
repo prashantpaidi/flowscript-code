@@ -14,7 +14,8 @@ import {
   Sparkles, 
   X, 
   Loader2,
-  Sidebar
+  Sidebar,
+  Zap
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -318,6 +319,14 @@ export function EditorTab() {
           <SnippetButton tooltip="Write a debug message to the logs tab console" onClick={() => insertSnippet("console.log('Log message');")}>
             <Terminal className="size-3 text-muted-foreground" data-icon="inline-start" />
             log()
+          </SnippetButton>
+          <SnippetButton tooltip="Add a hotkey trigger function (runs on shortcut press)" onClick={() => insertSnippet("\n// @trigger('hotkey', 'ctrl+shift+k')\nasync function onHotkey() {\n  console.log('Hotkey pressed');\n}\n")}>
+            <Zap className="size-3 text-blue-500" data-icon="inline-start" />
+            trigger(hotkey)
+          </SnippetButton>
+          <SnippetButton tooltip="Add a text expander trigger function (expands text shortcuts)" onClick={() => insertSnippet("\n// @trigger('expander', ';;shortcut', 'expansion text')\nasync function onExpand() {\n  console.log('Text expanded');\n}\n")}>
+            <Zap className="size-3 text-purple-500" data-icon="inline-start" />
+            trigger(expander)
           </SnippetButton>
         </div>
       </div>
