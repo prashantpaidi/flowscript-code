@@ -274,4 +274,101 @@ describe('Debugger Native Actions', () => {
 
     cleanup();
   });
+
+  it('should parse standalone "+" key correctly', async () => {
+    const tabId = 101;
+    const listeners: any[] = [];
+    vi.spyOn(fakeBrowser.runtime.onMessage, 'addListener').mockImplementation((listener) => {
+      listeners.push(listener);
+    });
+
+    const cleanup = setupDebuggerListener();
+
+    vi.spyOn(fakeBrowser.runtime, 'sendMessage').mockImplementation(async (message: any) => {
+      for (const listener of listeners) {
+        const result = await listener(message, { tab: { id: tabId } });
+        if (result !== undefined) return result;
+      }
+      return { success: false };
+    });
+
+    const result = await performNativePress('+');
+    expect(result).toBe(true);
+
+    const calls = fb.debugger.sendCommand.mock.calls;
+    // For standalone '+', no modifiers should be sent. Only rawKeyDown and keyUp.
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 0,
+      key: '+',
+      code: 'Equal',
+      windowsVirtualKeyCode: 187
+    }]);
+    expect(calls[1]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 0,
+      key: '+',
+      code: 'Equal',
+      windowsVirtualKeyCode: 187
+    }]);
+
+    cleanup();
+  });
+
+  it('should parse "Ctrl++" key combo correctly', async () => {
+    const tabId = 102;
+    const listeners: any[] = [];
+    vi.spyOn(fakeBrowser.runtime.onMessage, 'addListener').mockImplementation((listener) => {
+      listeners.push(listener);
+    });
+
+    const cleanup = setupDebuggerListener();
+
+    vi.spyOn(fakeBrowser.runtime, 'sendMessage').mockImplementation(async (message: any) => {
+      for (const listener of listeners) {
+        const result = await listener(message, { tab: { id: tabId } });
+        if (result !== undefined) return result;
+      }
+      return { success: false };
+    });
+
+    const result = await performNativePress('Ctrl++');
+    expect(result).toBe(true);
+
+    const calls = fb.debugger.sendCommand.mock.calls;
+    // Ctrl++ contains Ctrl modifier and '+' key.
+    // Order: Control rawKeyDown, + rawKeyDown, + keyUp, Control keyUp.
+    expect(calls.length).toBe(4);
+    expect(calls[0]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 2,
+      key: 'Control',
+      code: 'ControlLeft',
+      windowsVirtualKeyCode: 17
+    }]);
+    expect(calls[1]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 2,
+      key: '+',
+      code: 'Equal',
+      windowsVirtualKeyCode: 187
+    }]);
+    expect(calls[2]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 2,
+      key: '+',
+      code: 'Equal',
+      windowsVirtualKeyCode: 187
+    }]);
+    expect(calls[3]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 0,
+      key: 'Control',
+      code: 'ControlLeft',
+      windowsVirtualKeyCode: 17
+    }]);
+
+    cleanup();
+  });
 });

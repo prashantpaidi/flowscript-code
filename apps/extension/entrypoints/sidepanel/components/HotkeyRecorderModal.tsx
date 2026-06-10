@@ -42,7 +42,7 @@ export function HotkeyRecorderModal({ isOpen, onClose, onRecord, actionType }: H
 
       // Identify key
       const keyName = e.key;
-      const isModifier = ['Control', 'Shift', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(keyName);
+      const isModifier = ['Control', 'Shift', 'Alt', 'Meta', 'CapsLock'].includes(keyName);
 
       if (!isModifier) {
         if (keyName === ' ') {
@@ -85,7 +85,13 @@ export function HotkeyRecorderModal({ isOpen, onClose, onRecord, actionType }: H
     if (shift) parts.push('Shift');
     if (alt) parts.push('Alt');
     if (meta) parts.push('Meta');
-    if (primaryKey) parts.push(primaryKey);
+    if (primaryKey) {
+      if (primaryKey === 'Space') {
+        parts.push('space');
+      } else {
+        parts.push(primaryKey);
+      }
+    }
     return parts.join('+');
   };
 

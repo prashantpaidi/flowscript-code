@@ -139,9 +139,11 @@ const KEY_MAP: Record<string, KeyDefinition> = {
 
 async function handleDebuggerPress(tabId: number, keyCombo: string): Promise<void> {
   let parts: string[] = [];
-  if (keyCombo.endsWith('++')) {
+  if (keyCombo === '+') {
+    parts = ['+'];
+  } else if (keyCombo.endsWith('++')) {
     const base = keyCombo.slice(0, -2);
-    parts = base.split('+').map(p => p.trim());
+    parts = base.split('+').map(p => p.trim()).filter(Boolean);
     parts.push('+');
   } else {
     parts = keyCombo.split('+').map(p => p.trim());

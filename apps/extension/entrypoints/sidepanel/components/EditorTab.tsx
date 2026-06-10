@@ -28,8 +28,15 @@ export function EditorTab() {
 
   const handleRecordHotkey = (combo: string) => {
     setIsRecordModalOpen(false);
+
+    const escapeJsString = (str: string) => {
+      return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    };
+
+    const escapedCombo = escapeJsString(combo);
+
     if (recordActionType === 'press') {
-      insertSnippet(`press('${combo}');`);
+      insertSnippet(`press('${escapedCombo}');`);
     } else {
       const formatted = combo
         .split('+')
@@ -41,10 +48,12 @@ export function EditorTab() {
         .filter(Boolean)
         .join(' + ');
 
+      const escapedFormatted = escapeJsString(formatted);
+
       insertSnippet(
-        `\n// @trigger('hotkey', '${combo.toLowerCase()}')\n` +
+        `\n// @trigger('hotkey', '${escapeJsString(combo.toLowerCase())}')\n` +
         `async function onHotkey() {\n` +
-        `  console.log('Hotkey pressed: ${formatted}');\n` +
+        `  console.log('Hotkey pressed: ${escapedFormatted}');\n` +
         `}\n`
       );
     }
