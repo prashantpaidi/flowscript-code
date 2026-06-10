@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { performNativeClick, performNativeType, setupDebuggerListener } from './debugger-actions.js';
+import { performNativeClick, performNativeType, performNativeTypeActive, performNativePress, setupDebuggerListener } from './debugger-actions.js';
 
 const fb = fakeBrowser as any;
 
@@ -145,5 +145,133 @@ describe('Debugger Native Actions', () => {
     await expect(performNativeClick('#non-existent')).rejects.toThrow(
       'Element not found for selector: #non-existent'
     );
+  });
+
+  it('should type actively without selector coordinates', async () => {
+    const tabId = 789;
+    
+    // Intercept listeners
+    const listeners: any[] = [];
+    vi.spyOn(fakeBrowser.runtime.onMessage, 'addListener').mockImplementation((listener) => {
+      listeners.push(listener);
+    });
+
+    const cleanup = setupDebuggerListener();
+
+    vi.spyOn(fakeBrowser.runtime, 'sendMessage').mockImplementation(async (message: any) => {
+      for (const listener of listeners) {
+        const result = await listener(message, { tab: { id: tabId } });
+        if (result !== undefined) {
+          return result;
+        }
+      }
+      return { success: false };
+    });
+
+    const result = await performNativeTypeActive('Hello Focus');
+
+    expect(result).toBe(true);
+    expect(fb.debugger.attach).toHaveBeenCalledWith({ tabId }, '1.3');
+    // No mouse events should be dispatched
+    expect(fb.debugger.sendCommand).not.toHaveBeenCalledWith(
+      { tabId },
+      'Input.dispatchMouseEvent',
+      expect.any(Object)
+    );
+    // Directly types the text
+    expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId },
+      'Input.insertText',
+      { text: 'Hello Focus' }
+    );
+    expect(fb.debugger.detach).toHaveBeenCalledWith({ tabId });
+
+    cleanup();
+  });
+
+  it('should press hotkey combinations in the correct sequence with modifiers', async () => {
+    const tabId = 999;
+    
+    const listeners: any[] = [];
+    vi.spyOn(fakeBrowser.runtime.onMessage, 'addListener').mockImplementation((listener) => {
+      listeners.push(listener);
+    });
+
+    const cleanup = setupDebuggerListener();
+
+    vi.spyOn(fakeBrowser.runtime, 'sendMessage').mockImplementation(async (message: any) => {
+      for (const listener of listeners) {
+        const result = await listener(message, { tab: { id: tabId } });
+        if (result !== undefined) {
+          return result;
+        }
+      }
+      return { success: false };
+    });
+
+    // Test 'Ctrl+Shift+I'
+    const result = await performNativePress('Ctrl+Shift+I');
+
+    expect(result).toBe(true);
+    expect(fb.debugger.attach).toHaveBeenCalledWith({ tabId }, '1.3');
+
+    // Let's verify the sequential sendCommand calls
+    const calls = fb.debugger.sendCommand.mock.calls;
+    
+    // Down modifiers: ControlLeft (2), ShiftLeft (2 + 8 = 10)
+    expect(calls[0]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 2,
+      key: 'Control',
+      code: 'ControlLeft',
+      windowsVirtualKeyCode: 17
+    }]);
+
+    expect(calls[1]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 10,
+      key: 'Shift',
+      code: 'ShiftLeft',
+      windowsVirtualKeyCode: 16
+    }]);
+
+    // Down active key: 'I' (capitalized since Shift is active)
+    expect(calls[2]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'rawKeyDown',
+      modifiers: 10,
+      key: 'I',
+      code: 'KeyI',
+      windowsVirtualKeyCode: 73
+    }]);
+
+    // Up active key: 'I'
+    expect(calls[3]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 10,
+      key: 'I',
+      code: 'KeyI',
+      windowsVirtualKeyCode: 73
+    }]);
+
+    // Up modifiers: ShiftLeft (10 - 8 = 2), ControlLeft (2 - 2 = 0)
+    expect(calls[4]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 2,
+      key: 'Shift',
+      code: 'ShiftLeft',
+      windowsVirtualKeyCode: 16
+    }]);
+
+    expect(calls[5]).toEqual([{ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers: 0,
+      key: 'Control',
+      code: 'ControlLeft',
+      windowsVirtualKeyCode: 17
+    }]);
+
+    expect(fb.debugger.detach).toHaveBeenCalledWith({ tabId });
+
+    cleanup();
   });
 });

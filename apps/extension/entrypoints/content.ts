@@ -1,5 +1,5 @@
 import { MESSAGE_TYPES } from '@flowscript/shared';
-import { performNativeClick, performNativeType } from '@/utils/debugger-actions';
+import { performNativeClick, performNativeType, performNativeTypeActive, performNativePress } from '@/utils/debugger-actions';
 import { getSavedTriggers, watchTriggers, getRecordingStatus, watchRecordingStatus } from '@/utils/storage';
 import { TriggerManager } from '@/utils/trigger-manager';
 import { generatePrimarySelector, generateFallbackSelector } from '@/utils/selector-generator';
@@ -132,6 +132,12 @@ const actionHandlers: Record<string, ActionHandler> = {
   nativeType: async (element, action) => {
     return performNativeType(action.selector, action.value || '');
   },
+  typeActive: async (element, action) => {
+    return performNativeTypeActive(action.value || '');
+  },
+  press: async (element, action) => {
+    return performNativePress(action.value || '');
+  },
   readDom: (element, action) => {
     const path = (action.property || 'textContent').trim();
     if (path.startsWith('attr:')) {
@@ -175,6 +181,19 @@ const actionHandlers: Record<string, ActionHandler> = {
 async function executeAction(id: number, action: any, primaryColor?: string) {
   try {
     const { type, selector } = action;
+
+    if (type === 'typeActive' || type === 'press') {
+      const handler = actionHandlers[type];
+      if (handler) {
+        const result = await handler(null as any, action);
+        if (typeof result === 'object' && result !== null && 'success' in result) {
+          return { id, ...result };
+        }
+        return { id, success: !!result };
+      }
+      return { id, success: false, error: `Unsupported action type: "${type}"` };
+    }
+
     const element = document.querySelector(selector) as HTMLElement;
     if (!element) {
       if (type === 'readDom') {

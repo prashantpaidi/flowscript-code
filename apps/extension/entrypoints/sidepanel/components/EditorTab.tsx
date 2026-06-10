@@ -1,7 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useAutomationStore } from '../store/useAutomationStore';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { HotkeyRecorderModal } from './HotkeyRecorderModal';
 import { 
   MousePointerClick, 
   Keyboard, 
@@ -22,6 +23,33 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { FileTree } from './FileTree';
 
 export function EditorTab() {
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [recordActionType, setRecordActionType] = useState<'press' | 'trigger'>('press');
+
+  const handleRecordHotkey = (combo: string) => {
+    setIsRecordModalOpen(false);
+    if (recordActionType === 'press') {
+      insertSnippet(`press('${combo}');`);
+    } else {
+      const formatted = combo
+        .split('+')
+        .map((part) => {
+          const trimmed = part.trim();
+          if (!trimmed) return '';
+          return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+        })
+        .filter(Boolean)
+        .join(' + ');
+
+      insertSnippet(
+        `\n// @trigger('hotkey', '${combo.toLowerCase()}')\n` +
+        `async function onHotkey() {\n` +
+        `  console.log('Hotkey pressed: ${formatted}');\n` +
+        `}\n`
+      );
+    }
+  };
+
   const code = useAutomationStore((s) => s.code);
   const setCode = useAutomationStore((s) => s.setCode);
   const validationError = useAutomationStore((s) => s.validationError);
@@ -308,6 +336,17 @@ export function EditorTab() {
             <Keyboard className="size-3 text-primary" data-icon="inline-start" />
             nativeType()
           </SnippetButton>
+          <SnippetButton tooltip="CDP Native typing to the active focus (bypasses selectors)" onClick={() => insertSnippet("typeActive('text');")}>
+            <Keyboard className="size-3 text-primary" data-icon="inline-start" />
+            typeActive()
+          </SnippetButton>
+          <SnippetButton tooltip="CDP Native key combo press (simulates hardware hotkeys)" onClick={() => {
+            setRecordActionType('press');
+            setIsRecordModalOpen(true);
+          }}>
+            <Keyboard className="size-3 text-primary" data-icon="inline-start" />
+            press()
+          </SnippetButton>
           <SnippetButton tooltip="Smooth scroll the page to center an element" onClick={() => insertSnippet("scroll('selector');")}>
             <Scroll className="size-3 text-muted-foreground" data-icon="inline-start" />
             scroll()
@@ -320,7 +359,10 @@ export function EditorTab() {
             <Terminal className="size-3 text-muted-foreground" data-icon="inline-start" />
             log()
           </SnippetButton>
-          <SnippetButton tooltip="Add a hotkey trigger function (runs on shortcut press)" onClick={() => insertSnippet("\n// @trigger('hotkey', 'ctrl+shift+k')\nasync function onHotkey() {\n  console.log('Hotkey pressed');\n}\n")}>
+          <SnippetButton tooltip="Add a hotkey trigger function (runs on shortcut press)" onClick={() => {
+            setRecordActionType('trigger');
+            setIsRecordModalOpen(true);
+          }}>
             <Zap className="size-3 text-blue-500" data-icon="inline-start" />
             trigger(hotkey)
           </SnippetButton>
@@ -330,6 +372,13 @@ export function EditorTab() {
           </SnippetButton>
         </div>
       </div>
+
+      <HotkeyRecorderModal
+        isOpen={isRecordModalOpen}
+        onClose={() => setIsRecordModalOpen(false)}
+        onRecord={handleRecordHotkey}
+        actionType={recordActionType}
+      />
     </div>
   );
 }

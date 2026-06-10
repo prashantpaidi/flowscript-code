@@ -55,6 +55,16 @@ const ACTION_REGISTRY: ActionRegistryItem[] = [
     name: 'updateDom',
     createPayload: (selector: string, property: string, value: any) => ({ type: 'updateDom', selector, property, value }),
     formatLog: (act) => `UPDATE DOM: set "${act.property}" to "${typeof act.value === 'object' ? JSON.stringify(act.value) : act.value}" on ${act.selector}`
+  },
+  {
+    name: 'typeActive',
+    createPayload: (value: string) => ({ type: 'typeActive', value }),
+    formatLog: (act) => `NATIVE TYPE (ACTIVE FOCUS): "${act.value}"`
+  },
+  {
+    name: 'press',
+    createPayload: (value: string) => ({ type: 'press', value }),
+    formatLog: (act) => `NATIVE PRESS: "${act.value}"`
   }
 ];
 

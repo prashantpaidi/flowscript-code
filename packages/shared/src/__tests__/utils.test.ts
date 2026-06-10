@@ -77,6 +77,30 @@ describe('isValidAction', () => {
     expect(isValidAction(action2)).toBe(false);
     expect(isValidAction(action3)).toBe(false);
   });
+
+  it('should return true for a valid typeActive action with value and no selector', () => {
+    const action = { type: 'typeActive', value: 'some active typing' };
+    expect(isValidAction(action)).toBe(true);
+  });
+
+  it('should return false for typeActive action without value or with non-string value', () => {
+    const action1 = { type: 'typeActive' };
+    const action2 = { type: 'typeActive', value: 123 };
+    expect(isValidAction(action1)).toBe(false);
+    expect(isValidAction(action2)).toBe(false);
+  });
+
+  it('should return true for a valid press action with key combo and no selector', () => {
+    const action = { type: 'press', value: 'Ctrl+S' };
+    expect(isValidAction(action)).toBe(true);
+  });
+
+  it('should return false for press action without value or with non-string value', () => {
+    const action1 = { type: 'press' };
+    const action2 = { type: 'press', value: 123 };
+    expect(isValidAction(action1)).toBe(false);
+    expect(isValidAction(action2)).toBe(false);
+  });
 });
 
 describe('parseTriggers', () => {
@@ -398,6 +422,12 @@ describe('autoAwaitCommands', () => {
       };
       await click('#btn');
     `;
+    expect(autoAwaitCommands(input)).toBe(expected);
+  });
+
+  it('should prepend await to typeActive and press commands', () => {
+    const input = "typeActive('hello'); press('Enter');";
+    const expected = "await typeActive('hello'); await press('Enter');";
     expect(autoAwaitCommands(input)).toBe(expected);
   });
 });
