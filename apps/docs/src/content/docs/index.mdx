@@ -1,0 +1,36 @@
+---
+title: FlowScript Documentation
+description: Developer-focused browser extension for web automation.
+template: splash
+hero:
+  tagline: Build, test, and run powerful automation scripts using Monaco, Manifest V3, and Chrome DevTools Protocol.
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Read the Overview
+      link: /intro/overview/
+      icon: right-arrow
+    - text: View API Reference
+      link: /reference/actions/
+      icon: open-book
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Discover FlowScript
+
+<CardGrid stagger>
+	<Card title="Manifest V3 Compliance" icon="setting">
+		Learn how we leverage isolated iframe execution and custom Chrome background workers in [Architecture](/intro/architecture/).
+	</Card>
+	<Card title="Hardware-Level CDP" icon="rocket">
+		Bypass typical CAPTCHAs and overrides using native browser APIs in [CDP Actions](/guides/cdp-actions/).
+	</Card>
+	<Card title="Script Triggering System" icon="bolt">
+		Configure script shortcuts globally on any web page using annotation comments in [Keyboard & Expander Triggers](/guides/triggers/).
+	</Card>
+	<Card title="Monaco API Reference" icon="open-book">
+		Explore function signatures and options for all standard and native helper functions in [API Reference](/reference/actions/).
+	</Card>
+</CardGrid>
