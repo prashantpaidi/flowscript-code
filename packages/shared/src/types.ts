@@ -1,4 +1,4 @@
-export const VALID_ACTION_TYPES = ['click', 'type', 'scroll', 'extract', 'hover', 'nativeClick', 'nativeType', 'readDom', 'updateDom', 'typeActive', 'press'] as const;
+export const VALID_ACTION_TYPES = ['click', 'type', 'scroll', 'hover', 'nativeClick', 'nativeType', 'readDom', 'updateDom', 'typeActive', 'press'] as const;
 export type AutomationActionType = typeof VALID_ACTION_TYPES[number];
 
 export interface AutomationAction {
