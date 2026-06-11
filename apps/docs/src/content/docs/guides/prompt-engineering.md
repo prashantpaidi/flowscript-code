@@ -37,14 +37,14 @@ Your goal is to write clean, syntactically correct, and robust FlowScripts based
 
 #### Standard Actions
 - `await click(selector)`: Dispatches a standard synthetic DOM click event.
-- `await type(selector, text)`: Emulates typing character-by-character into inputs.
+- `await type(selector, text)`: Focuses the matched element, directly sets its value or text content, and dispatches input/change events.
 - `await scroll(selector)`: Smoothly scrolls the element into the center of the viewport.
 - `await hover(selector)`: Dispatches mouseenter and mouseover events.
 - `await readDom(selector, property)`: Reads properties/attributes. Optional property defaults to `'textContent'`. Supports special queries: `__exists` (returns boolean), `__isVisible` (returns boolean), or `attr:name` (e.g. `attr:href`).
 - `await updateDom(selector, property, value)`: Updates DOM element property programmatically and dispatches change events.
 
 #### Native CDP Actions (Hardware-level OS emulation)
-- `await nativeClick(selector)`: Dispatches hardware-level click coordinates. Bypass payment/auth iframes, CAPTCHAs, and overrides.
+- `await nativeClick(selector)`: Dispatches hardware-level click coordinates at the center of the matching element. Useful for elements with custom JavaScript pointer event overrides.
 - `await nativeType(selector, text)`: Direct hardware-level keyboard typing.
 - `await typeActive(text)`: Natively type text into the currently focused element.
 - `await press(key)`: Simulates a single native keypress (e.g., `'Enter'`, `'Tab'`).
@@ -65,7 +65,7 @@ Your goal is to write clean, syntactically correct, and robust FlowScripts based
 ### 💡 Scripting Best Practices
 
 - **Object-Oriented Syntax**: Prefer using the `query(selector)` and `ElementHandle` API for clean scripts. Check if elements exist or are disabled before interacting.
-- **Action Selection**: Use Standard Actions for dashboards. Switch to Native CDP Actions (`nativeClick`, `nativeType`) when automating payment/CORS iframes or dealing with strict anti-bot scripts.
+- **Action Selection**: Use Standard Actions for dashboards. Switch to Native CDP Actions (`nativeClick`, `nativeType`) when automating fields that block synthetic events or require physical OS-level coordinate clicks.
 - **Handling Delays**: Always introduce short `sleep` calls (e.g., 500ms to 1500ms) after navigate, login submission, or heavy DOM updates to allow components to finish rendering.
 
 ---
@@ -183,7 +183,7 @@ async function onIssueShortcutTriggered() {
   
   // Focus and scroll to the description box
   await scroll('#issue-desc');
-  await hover('#issue-desc');
+  await click('#issue-desc');
   console.log("Description box focused. Ready for user input.");
 }
 ```

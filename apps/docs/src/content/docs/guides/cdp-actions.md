@@ -14,24 +14,23 @@ Understanding the differences between these actions is key to building resilient
 | Feature | Standard Actions (`click`, `type`) | Native CDP Actions (`nativeClick`, `nativeType`) |
 | :--- | :--- | :--- |
 | **Execution Layer** | Sandbox ➔ Content Script ➔ DOM | Sandbox ➔ Extension ➔ Chrome DevTools Protocol |
-| **Input Emulation** | Synthetic DOM Events (`click`, `keydown`) | Raw Hardware Inputs (OS-level mouse/keyboard) |
-| **CAPTCHA Bypass** | ❌ Often blocked by modern anti-bot triggers | ✅ Bypasses Cloudflare, reCAPTCHA, and Arkose Labs |
-| **Iframe Boundaries** | ❌ Restricted by Same-Origin policy limits | ✅ Interacts across all nested iframes seamlessly |
-| **Page Overrides** | ❌ Can be blocked by page-level `preventDefault()` | ✅ Bypasses all page-level JavaScript overrides |
+| **Input Emulation** | Synthetic DOM Events (`click`, `input`/`change`) | Raw Hardware Inputs (OS-level mouse/keyboard) |
+| **Input Authenticity** | Synthetic events (can be detected by pages) | Emulated OS-level inputs (looks more genuine to some scripts) |
+| **Same-Origin Boundaries** | ❌ Restricted by standard DOM access | ❌ Selector resolution still runs in main document context |
+| **Page Overrides** | ❌ Can be blocked by page-level `preventDefault()` | ✅ Bypasses page-level JavaScript click handlers |
 
 ---
 
 ## When to Use Which
 
-### Use Standard Actions when:
-* You are automating simple forms or dashboards without bot mitigation.
+## Use Standard Actions when:
+* You are automating simple forms or dashboards.
 * Performance is a priority (Standard Actions have slightly less execution overhead).
 * You want to run scripts in standard environments where debugging permissions might be restricted.
 
 ### Use Native CDP Actions when:
-* **Anti-Bot Systems are Present**: Cloudflare, reCAPTCHA, or Akamai detect synthetic clicks. Since `nativeClick` leverages Chrome's native debugging protocol to fire actual hardware-level input coordinate events, anti-bot scripts see it as genuine human movement.
-* **Complex Element Overrides**: Web applications that call `e.stopPropagation()` or custom handlers to intercept clicks will ignore synthetic clicks, but cannot block native CDP clicks.
-* **Third-Party Iframes**: Credit card forms or payment gateways hosted in nested iframes often restrict DOM access due to CORS. CDP actions operate globally based on viewport coordinates, bypassing iframe boundaries entirely.
+* **Simulated User Input**: You need to emulate actual hardware mouse/keyboard events rather than dispatching synthetic DOM events (which some web applications inspect or reject).
+* **Complex Element Overrides**: Web applications that call `e.stopPropagation()` or custom event overrides to block synthetic clicks can be bypassed by native CDP clicks, since the click coordinates are dispatched directly.
 
 ---
 

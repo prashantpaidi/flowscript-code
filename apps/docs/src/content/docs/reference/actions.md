@@ -20,7 +20,7 @@ Dispatches a standard synthetic DOM click event on the first element matching th
   ```
 
 ### `type(selector, text)`
-Simulates typing text into an input field or textarea by dispatching sequential synthetic keyboard events.
+Focuses the matched element, sets its value (for inputs/textareas/selects) or text content directly, and dispatches standard `input` and `change` events.
 * **Parameters**:
   * `selector` (`string`): A valid CSS selector.
   * `text` (`string`): The text to type.
@@ -67,7 +67,7 @@ Reads the value of a specific property or attribute from the matched DOM element
   ```
 
 ### `updateDom(selector, property, value)`
-Modifies a specific property of the matched DOM element programmatically, then dispatches standard `input` and `change` events.
+Modifies a specific property of the matched DOM element programmatically. If the modified property is `'value'`, standard `input` and `change` events are dispatched automatically.
 * **Parameters**:
   * `selector` (`string`): A valid CSS selector.
   * `property` (`string`): The target element property to modify (e.g., `'value'`, `'disabled'`).
