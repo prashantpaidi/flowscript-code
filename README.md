@@ -111,7 +111,7 @@ FlowScript provides a Puppeteer-like wrapper API to interact with elements clean
   ```javascript
   await nativeClick('#heavy-captcha-btn');
   ```
-* **`nativeType(selector, text)`**: Focuses the target element and inputs hardware-level keystrores directly using debugging channels.
+* **`nativeType(selector, text)`**: Focuses the target element and inputs hardware-level keystrokes directly using debugging channels.
   ```javascript
   await nativeType('input[type="password"]', 'securePassword123');
   ```
