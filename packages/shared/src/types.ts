@@ -15,20 +15,29 @@ export interface ExtensionMessage<T = any> {
 }
 
 export interface BaseTrigger {
-  type: 'hotkey' | 'expander';
-  triggerVal: string;      // e.g., 'ctrl+shift+k' or ';;tq'
+  type: 'hotkey' | 'expander' | 'load';
+  triggerVal?: string;      // e.g., 'ctrl+shift+k' or ';;tq'
   functionName: string;    // e.g., 'test'
+  urlPattern?: string;      // optional url match constraint
 }
 
 export interface HotkeyTrigger extends BaseTrigger {
   type: 'hotkey';
+  triggerVal: string;
   displayLabel: string;    // e.g., 'Ctrl + Shift + K'
 }
 
 export interface ExpanderTrigger extends BaseTrigger {
   type: 'expander';
+  triggerVal: string;
   expansionText: string;   // e.g., 'thank you very much'
 }
 
-export type ParsedTrigger = HotkeyTrigger | ExpanderTrigger;
+export interface LoadTrigger extends BaseTrigger {
+  type: 'load';
+  urlPattern: string;
+}
+
+export type ParsedTrigger = HotkeyTrigger | ExpanderTrigger | LoadTrigger;
+
 

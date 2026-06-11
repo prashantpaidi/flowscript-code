@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers, autoAwaitCommands } from '../utils.js';
+import { isValidAction, parseTriggers, cleanScriptCode, validateTriggers, autoAwaitCommands, matchUrlPattern } from '../utils.js';
 
 
 describe('isValidAction', () => {
@@ -255,6 +255,65 @@ describe('parseTriggers', () => {
       }
     ]);
   });
+
+  it('should parse triggers with URL pattern constraints', () => {
+    const code = `
+      // @trigger('hotkey', 'ctrl+shift+k', '*://github.com/*')
+      async function githubHotkey() {}
+
+      // @trigger('expander', ';;tq', 'thank you', '*://gmail.com/*')
+      async function gmailExpander() {}
+
+      // @trigger('load', '*://google.com/*')
+      async function googleLoad() {}
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([
+      {
+        type: 'hotkey',
+        triggerVal: 'ctrl+shift+k',
+        displayLabel: 'Ctrl + Shift + K',
+        urlPattern: '*://github.com/*',
+        functionName: 'githubHotkey'
+      },
+      {
+        type: 'expander',
+        triggerVal: ';;tq',
+        expansionText: 'thank you',
+        urlPattern: '*://gmail.com/*',
+        functionName: 'gmailExpander'
+      },
+      {
+        type: 'load',
+        urlPattern: '*://google.com/*',
+        functionName: 'googleLoad'
+      }
+    ]);
+  });
+
+  it('should ignore @trigger annotations if they are not in a comment block or line', () => {
+    const code = `
+      const testVar = "@trigger('hotkey', 'ctrl+shift+k')";
+      async function triggerFunction() {}
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([]);
+  });
+
+  it('should successfully parse trigger arguments containing parentheses', () => {
+    const code = `
+      // @trigger('load', '*://example.com/page(1)/*')
+      async function triggerFunction() {}
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([
+      {
+        type: 'load',
+        urlPattern: '*://example.com/page(1)/*',
+        functionName: 'triggerFunction'
+      }
+    ]);
+  });
 });
 
 describe('cleanScriptCode', () => {
@@ -279,6 +338,20 @@ describe('cleanScriptCode', () => {
     const cleaned = cleanScriptCode(code);
     expect(cleaned).toContain("@trigger('hotkey', 'alt+j')");
     expect(cleaned).not.toContain("ctrl+shift+k");
+  });
+
+  it('should strip @trigger annotations completely even if they contain parentheses in arguments without leaving syntax remnants', () => {
+    const code = `
+      // @trigger('load', '*://example.com/page(1)/*')
+      async function test() {
+        console.log('test');
+      }
+    `;
+    const cleaned = cleanScriptCode(code);
+    expect(cleaned).not.toContain('@trigger');
+    expect(cleaned).not.toContain('*://example.com/page(1)/*');
+    // Ensure no syntax error/remnant is left, e.g. "page(1)/*'"
+    expect(cleaned).not.toContain('page(1)');
   });
 });
 
@@ -307,12 +380,63 @@ describe('validateTriggers', () => {
     expect(validateTriggers(triggers)).toContain("Hotkey collision");
   });
 
+  it('should allow duplicate hotkeys on non-overlapping URL patterns', () => {
+    const triggers = [
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: '*://github.com/*', functionName: 'test1' },
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: '*://gitlab.com/*', functionName: 'test2' }
+    ];
+    expect(validateTriggers(triggers)).toBeNull();
+  });
+
+  it('should detect duplicate hotkeys on overlapping URL patterns', () => {
+    const triggers = [
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: '*://github.com/foo/*', functionName: 'test1' },
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: '*://github.com/*', functionName: 'test2' }
+    ];
+    expect(validateTriggers(triggers)).toContain("Hotkey collision");
+  });
+
+  it('should detect duplicate hotkeys when scheme is omitted in one pattern', () => {
+    const triggers = [
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: 'github.com/*', functionName: 'test1' },
+      { type: 'hotkey' as const, triggerVal: 'ctrl+shift+k', displayLabel: 'Ctrl + Shift + K', urlPattern: '*://github.com/*', functionName: 'test2' }
+    ];
+    expect(validateTriggers(triggers)).toContain("Hotkey collision");
+  });
+
   it('should detect duplicate expander shortcuts', () => {
     const triggers = [
       { type: 'expander' as const, triggerVal: ';;tq', expansionText: 'thanks', functionName: 'test1' },
       { type: 'expander' as const, triggerVal: ';;tq', expansionText: 'thank you', functionName: 'test2' }
     ];
     expect(validateTriggers(triggers)).toContain("Text expander collision");
+  });
+
+  it('should allow duplicate expander shortcuts on non-overlapping URL patterns', () => {
+    const triggers = [
+      { type: 'expander' as const, triggerVal: ';;tq', expansionText: 'thanks', urlPattern: 'github.com/*', functionName: 'test1' },
+      { type: 'expander' as const, triggerVal: ';;tq', expansionText: 'thank you', urlPattern: 'gitlab.com/*', functionName: 'test2' }
+    ];
+    expect(validateTriggers(triggers)).toBeNull();
+  });
+});
+
+describe('matchUrlPattern', () => {
+  it('should match correctly with wildcards', () => {
+    expect(matchUrlPattern('*://github.com/*', 'https://github.com/foo/bar')).toBe(true);
+    expect(matchUrlPattern('*://github.com/*', 'http://github.com/')).toBe(true);
+    expect(matchUrlPattern('https://github.com/*', 'http://github.com/foo')).toBe(false);
+  });
+
+  it('should match standard HTTP/HTTPS schemes if not specified in pattern', () => {
+    expect(matchUrlPattern('github.com/*', 'https://github.com/foo')).toBe(true);
+    expect(matchUrlPattern('github.com/*', 'http://github.com/foo')).toBe(true);
+    expect(matchUrlPattern('github.com/*', 'https://gitlab.com/foo')).toBe(false);
+  });
+
+  it('should match everything for all_urls or wildcard', () => {
+    expect(matchUrlPattern('<all_urls>', 'https://google.com')).toBe(true);
+    expect(matchUrlPattern('*', 'https://yahoo.com')).toBe(true);
   });
 });
 
