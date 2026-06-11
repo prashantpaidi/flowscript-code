@@ -96,6 +96,55 @@ function urlPatternsOverlap(p1: string | undefined, p2: string | undefined): boo
 }
 
 /**
+ * Extracts the raw argument string inside @trigger(...) by scanning for the matching closing parenthesis,
+ * ignoring parentheses inside string literals.
+ */
+function extractTriggerArgs(line: string): string | null {
+  const triggerIdx = line.indexOf('@trigger');
+  if (triggerIdx === -1) return null;
+
+  const startIdx = line.indexOf('(', triggerIdx);
+  if (startIdx === -1) return null;
+
+  let depth = 1;
+  let inString: string | null = null;
+  let isEscaped = false;
+
+  for (let i = startIdx + 1; i < line.length; i++) {
+    const char = line[i];
+
+    if (isEscaped) {
+      isEscaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      isEscaped = true;
+      continue;
+    }
+
+    if (inString) {
+      if (char === inString) {
+        inString = null;
+      }
+    } else {
+      if (char === "'" || char === '"' || char === '`') {
+        inString = char;
+      } else if (char === '(') {
+        depth++;
+      } else if (char === ')') {
+        depth--;
+        if (depth === 0) {
+          return line.slice(startIdx + 1, i);
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Parses @trigger('hotkey' | 'expander' | 'load', ...) annotations from the script
  */
 export function parseTriggers(code: string): ParsedTrigger[] {
@@ -108,7 +157,6 @@ export function parseTriggers(code: string): ParsedTrigger[] {
     | { type: 'load'; urlPattern: string }
   > = [];
   
-  const triggerRegex = /@trigger\s*\(([^)]+)\)/;
   const functionRegex = /(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s+([a-zA-Z0-9_$]+)|(?:export\s+)?(?:const|let|var)\s+([a-zA-Z0-9_$]+)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[a-zA-Z0-9_$]+)?\s*(?:=>|function\b)/;
 
   let inBlockComment = false;
@@ -126,43 +174,45 @@ export function parseTriggers(code: string): ParsedTrigger[] {
       inBlockComment = false;
     }
 
-    const triggerMatch = line.match(triggerRegex);
-    if (triggerMatch && /^\s*(?:\/\/|\/\*|\*)*\s*@trigger/.test(line)) {
-      const argsRaw = triggerMatch[1];
-      const args: string[] = [];
-      const argRegex = /(['"`])(.*?)\1/g;
-      let argMatch;
-      while ((argMatch = argRegex.exec(argsRaw)) !== null) {
-        args.push(argMatch[2]);
-      }
-      
-      if (args.length > 0) {
-        const type = args[0] as 'hotkey' | 'expander' | 'load';
-        if (type === 'hotkey') {
-          const triggerVal = args[1] || '';
-          const urlPattern = args[2] || undefined;
-          pendingTriggers.push({
-            type,
-            triggerVal,
-            displayLabel: formatHotkey(triggerVal),
-            urlPattern
-          });
-        } else if (type === 'expander') {
-          const triggerVal = args[1] || '';
-          const expansionText = args[2] || '';
-          const urlPattern = args[3] || undefined;
-          pendingTriggers.push({
-            type,
-            triggerVal,
-            expansionText,
-            urlPattern
-          });
-        } else if (type === 'load') {
-          const urlPattern = args[1] || '*';
-          pendingTriggers.push({
-            type,
-            urlPattern
-          });
+    const isTriggerComment = /^\s*(?:\/\/|\/\*|\*)*\s*@trigger/.test(line);
+    if (isTriggerComment) {
+      const argsRaw = extractTriggerArgs(line);
+      if (argsRaw !== null) {
+        const args: string[] = [];
+        const argRegex = /(['"`])(.*?)\1/g;
+        let argMatch;
+        while ((argMatch = argRegex.exec(argsRaw)) !== null) {
+          args.push(argMatch[2]);
+        }
+        
+        if (args.length > 0) {
+          const type = args[0] as 'hotkey' | 'expander' | 'load';
+          if (type === 'hotkey') {
+            const triggerVal = args[1] || '';
+            const urlPattern = args[2] || undefined;
+            pendingTriggers.push({
+              type,
+              triggerVal,
+              displayLabel: formatHotkey(triggerVal),
+              urlPattern
+            });
+          } else if (type === 'expander') {
+            const triggerVal = args[1] || '';
+            const expansionText = args[2] || '';
+            const urlPattern = args[3] || undefined;
+            pendingTriggers.push({
+              type,
+              triggerVal,
+              expansionText,
+              urlPattern
+            });
+          } else if (type === 'load') {
+            const urlPattern = args[1] || '*';
+            pendingTriggers.push({
+              type,
+              urlPattern
+            });
+          }
         }
       }
       continue;
@@ -217,7 +267,64 @@ export function parseTriggers(code: string): ParsedTrigger[] {
  * Cleans @trigger(...) annotations from the script code to avoid SyntaxError
  */
 export function cleanScriptCode(code: string): string {
-  return code.replace(/^[ \t]*(?:\/\/|\/\*|\*)?[ \t]*@trigger\s*\(.*?\)[ \t]*\*?\/?/gm, '');
+  const lines = code.split('\n');
+  const cleanedLines = lines.map(line => {
+    const trimmed = line.trim();
+    if (/^(?:\/\/|\/\*|\*|\s)*@trigger\b/.test(trimmed)) {
+      const triggerIdx = line.indexOf('@trigger');
+      const startIdx = line.indexOf('(', triggerIdx);
+      if (startIdx !== -1) {
+        let depth = 1;
+        let inString: string | null = null;
+        let isEscaped = false;
+        let endIdx = -1;
+
+        for (let i = startIdx + 1; i < line.length; i++) {
+          const char = line[i];
+          if (isEscaped) {
+            isEscaped = false;
+            continue;
+          }
+          if (char === '\\') {
+            isEscaped = true;
+            continue;
+          }
+          if (inString) {
+            if (char === inString) {
+              inString = null;
+            }
+          } else {
+            if (char === "'" || char === '"' || char === '`') {
+              inString = char;
+            } else if (char === '(') {
+              depth++;
+            } else if (char === ')') {
+              depth--;
+              if (depth === 0) {
+                endIdx = i;
+                break;
+              }
+            }
+          }
+        }
+
+        if (endIdx !== -1) {
+          const beforeTrigger = line.slice(0, triggerIdx);
+          const afterTrigger = line.slice(endIdx + 1);
+
+          const cleanBefore = beforeTrigger.replace(/(?:\/\/|\/\*|\*|\s)+$/, '');
+          const cleanAfter = afterTrigger.replace(/^\s*(?:\*\/)?/, '');
+
+          if (cleanBefore.trim() === '' && cleanAfter.trim() === '') {
+            return '';
+          }
+          return cleanBefore + cleanAfter;
+        }
+      }
+    }
+    return line;
+  });
+  return cleanedLines.join('\n');
 }
 
 /**

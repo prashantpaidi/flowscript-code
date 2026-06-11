@@ -299,6 +299,21 @@ describe('parseTriggers', () => {
     const triggers = parseTriggers(code);
     expect(triggers).toEqual([]);
   });
+
+  it('should successfully parse trigger arguments containing parentheses', () => {
+    const code = `
+      // @trigger('load', '*://example.com/page(1)/*')
+      async function triggerFunction() {}
+    `;
+    const triggers = parseTriggers(code);
+    expect(triggers).toEqual([
+      {
+        type: 'load',
+        urlPattern: '*://example.com/page(1)/*',
+        functionName: 'triggerFunction'
+      }
+    ]);
+  });
 });
 
 describe('cleanScriptCode', () => {
@@ -323,6 +338,20 @@ describe('cleanScriptCode', () => {
     const cleaned = cleanScriptCode(code);
     expect(cleaned).toContain("@trigger('hotkey', 'alt+j')");
     expect(cleaned).not.toContain("ctrl+shift+k");
+  });
+
+  it('should strip @trigger annotations completely even if they contain parentheses in arguments without leaving syntax remnants', () => {
+    const code = `
+      // @trigger('load', '*://example.com/page(1)/*')
+      async function test() {
+        console.log('test');
+      }
+    `;
+    const cleaned = cleanScriptCode(code);
+    expect(cleaned).not.toContain('@trigger');
+    expect(cleaned).not.toContain('*://example.com/page(1)/*');
+    // Ensure no syntax error/remnant is left, e.g. "page(1)/*'"
+    expect(cleaned).not.toContain('page(1)');
   });
 });
 
