@@ -130,11 +130,21 @@ describe('Debugger Native Actions', () => {
       'Input.dispatchMouseEvent',
       expect.objectContaining({ type: 'mouseReleased', x: 275, y: 315 })
     );
-    // Then it types
+    // Then it types character by character
     expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
       { tabId },
-      'Input.insertText',
-      { text: 'Hello World!' }
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'keyDown', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
+    );
+    expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId },
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'char', text: 'H', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
+    );
+    expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId },
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'keyUp', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
     );
     expect(fb.debugger.detach).toHaveBeenCalledWith({ tabId });
 
@@ -178,11 +188,21 @@ describe('Debugger Native Actions', () => {
       'Input.dispatchMouseEvent',
       expect.any(Object)
     );
-    // Directly types the text
+    // Directly types the text character by character
     expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
       { tabId },
-      'Input.insertText',
-      { text: 'Hello Focus' }
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'keyDown', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
+    );
+    expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId },
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'char', text: 'H', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
+    );
+    expect(fb.debugger.sendCommand).toHaveBeenCalledWith(
+      { tabId },
+      'Input.dispatchKeyEvent',
+      expect.objectContaining({ type: 'keyUp', key: 'H', code: 'KeyH', windowsVirtualKeyCode: 72 })
     );
     expect(fb.debugger.detach).toHaveBeenCalledWith({ tabId });
 

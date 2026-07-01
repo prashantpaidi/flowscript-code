@@ -314,6 +314,105 @@ function releaseDebugger(tabId: number) {
   }
 }
 
+const SHIFT_MAP: Record<string, { key: string; code: string; keyCode: number }> = {
+  '~': { key: '~', code: 'Backquote', keyCode: 192 },
+  '!': { key: '!', code: 'Digit1', keyCode: 49 },
+  '@': { key: '@', code: 'Digit2', keyCode: 50 },
+  '#': { key: '#', code: 'Digit3', keyCode: 51 },
+  '$': { key: '$', code: 'Digit4', keyCode: 52 },
+  '%': { key: '%', code: 'Digit5', keyCode: 53 },
+  '^': { key: '^', code: 'Digit6', keyCode: 54 },
+  '&': { key: '&', code: 'Digit7', keyCode: 55 },
+  '*': { key: '*', code: 'Digit8', keyCode: 56 },
+  '(': { key: '(', code: 'Digit9', keyCode: 57 },
+  ')': { key: ')', code: 'Digit0', keyCode: 48 },
+  '_': { key: '_', code: 'Minus', keyCode: 189 },
+  '+': { key: '+', code: 'Equal', keyCode: 187 },
+  '{': { key: '{', code: 'BracketLeft', keyCode: 219 },
+  '}': { key: '}', code: 'BracketRight', keyCode: 221 },
+  '|': { key: '|', code: 'Backslash', keyCode: 220 },
+  ':': { key: ':', code: 'Semicolon', keyCode: 186 },
+  '"': { key: '"', code: 'Quote', keyCode: 222 },
+  '<': { key: '<', code: 'Comma', keyCode: 188 },
+  '>': { key: '>', code: 'Period', keyCode: 190 },
+  '?': { key: '?', code: 'Slash', keyCode: 191 },
+};
+
+async function typeTextNatively(tabId: number, text: string): Promise<void> {
+  for (const char of text) {
+    const isShift = /[A-Z]/.test(char) || '~!@#$%^&*()_+{}|:"<>?'.includes(char);
+    const modifiers = isShift ? 8 : 0;
+
+    let key = char;
+    let code = '';
+    let keyCode = char.charCodeAt(0);
+
+    const lowerChar = char.toLowerCase();
+
+    if (char === '\n' || char === '\r') {
+      key = 'Enter';
+      code = 'Enter';
+      keyCode = 13;
+    } else if (char === '\t') {
+      key = 'Tab';
+      code = 'Tab';
+      keyCode = 9;
+    } else if (SHIFT_MAP[char]) {
+      const mapped = SHIFT_MAP[char];
+      key = mapped.key;
+      code = mapped.code;
+      keyCode = mapped.keyCode;
+    } else if (lowerChar >= 'a' && lowerChar <= 'z') {
+      code = `Key${lowerChar.toUpperCase()}`;
+      keyCode = lowerChar.toUpperCase().charCodeAt(0);
+    } else if (lowerChar >= '0' && lowerChar <= '9') {
+      code = `Digit${lowerChar}`;
+      keyCode = lowerChar.charCodeAt(0);
+    } else {
+      const mapItem = KEY_MAP[lowerChar];
+      if (mapItem) {
+        key = mapItem.key;
+        code = mapItem.code;
+        keyCode = mapItem.keyCode || char.charCodeAt(0);
+      } else {
+        code = char;
+      }
+    }
+
+    // 1. keyDown
+    await browser.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      modifiers,
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+    });
+
+    // 2. char
+    await browser.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'char',
+      modifiers,
+      text: char,
+      unmodifiedText: char,
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+    });
+
+    // 3. keyUp
+    await browser.debugger.sendCommand({ tabId }, 'Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      modifiers,
+      key,
+      code,
+      windowsVirtualKeyCode: keyCode,
+    });
+
+    // Add a tiny delay to simulate realistic typing speed and let inputs process events
+    await new Promise((resolve) => setTimeout(resolve, 15));
+  }
+}
+
 /**
  * Background script listener to attach debugger and send CDP native input commands.
  */
@@ -385,14 +484,10 @@ export function setupDebuggerListener(): () => void {
             clickCount: 1,
           });
           // Type the text natively
-          await browser.debugger.sendCommand({ tabId }, 'Input.insertText', {
-            text,
-          });
+          await typeTextNatively(tabId, text);
         } else if (message.type === 'DEBUGGER_TYPE_ACTIVE') {
           const { text } = message;
-          await browser.debugger.sendCommand({ tabId }, 'Input.insertText', {
-            text,
-          });
+          await typeTextNatively(tabId, text);
         } else if (message.type === 'DEBUGGER_PRESS') {
           const { keyCombo } = message;
           await handleDebuggerPress(tabId, keyCombo);
