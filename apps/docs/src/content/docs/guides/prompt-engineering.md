@@ -67,6 +67,7 @@ Your goal is to write clean, syntactically correct, and robust FlowScripts based
 - **Object-Oriented Syntax**: Prefer using the `query(selector)` and `ElementHandle` API for clean scripts. Check if elements exist or are disabled before interacting.
 - **Action Selection**: Use Standard Actions for dashboards. Switch to Native CDP Actions (`nativeClick`, `nativeType`) when automating fields that block synthetic events or require physical OS-level coordinate clicks.
 - **Handling Delays**: Always introduce short `sleep` calls (e.g., 500ms to 1500ms) after navigate, login submission, or heavy DOM updates to allow components to finish rendering.
+- **Closure State Persistence (Incremental Stepping)**: The script is evaluated once in a persistent sandbox context, and its trigger functions are cached. Any variables declared at the top-level (outside of the trigger functions) will persist their state across subsequent trigger invocations. Use this to implement "Stepped Execution" / "Incremental Steppers" (e.g., stepping through a dataset manually one trigger at a time). Note that editing and saving the code will re-initialize this state.
 
 ---
 
@@ -210,5 +211,60 @@ async function scrapeHackerNewsTopStory() {
   const searchBox = query('input[name="q"]');
   const searchExists = await searchBox.exists();
   console.log(`Search input exists: ${searchExists}`);
+}
+```
+
+### Example 5: Stepped / Incremental Execution (Manual Stepper)
+
+**User Prompt:**
+> Write a FlowScript that steps through a dataset of forms (usernames and emails) one item at a time when I press `ctrl+shift+y`. If I want to go back to the previous item, I should be able to press `ctrl+shift+u` to decrement the pointer. It should type the details into the active elements, press tab to navigate, and submit/save the form using `ctrl+s`. The dataset has three sample users.
+
+**Generated FlowScript:**
+```javascript
+// 1. Dataset stored in script closure/top-level scope
+const userDataset = [
+  { name: "Alice Smith", email: "alice@example.com" },
+  { name: "Bob Johnson", email: "bob@example.com" },
+  { name: "Charlie Brown", email: "charlie@example.com" }
+];
+
+// 2. Track index in closure scope (persists across triggers)
+let currentStepIndex = 0;
+
+// @trigger('hotkey', 'ctrl+shift+y')
+async function runNextStep() {
+  if (currentStepIndex >= userDataset.length) {
+    console.log("All dataset items processed. Wrapping around to the first item.");
+    currentStepIndex = 0;
+  }
+
+  const user = userDataset[currentStepIndex];
+  console.log(`Processing step ${currentStepIndex}: ${user.name}`);
+
+  // Natively type name into active element
+  await typeActive(user.name);
+  await sleep(500);
+
+  // Press tab to focus email input
+  await press('Tab');
+  await sleep(500);
+
+  // Natively type email into newly focused element
+  await typeActive(user.email);
+  await sleep(500);
+
+  // Trigger page save / submit
+  await press('ctrl+s');
+  await sleep(1500);
+
+  // Move to the next item for the next trigger
+  currentStepIndex++;
+}
+
+// @trigger('hotkey', 'ctrl+shift+u')
+async function runPreviousStep() {
+  // Move index backward with wrap-around safety
+  currentStepIndex = (currentStepIndex - 1 + userDataset.length) % userDataset.length;
+  console.log(`Index moved back. Next item to process will be: ${userDataset[currentStepIndex].name}`);
 }
 ```

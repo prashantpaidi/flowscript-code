@@ -266,6 +266,9 @@ describe('parseTriggers', () => {
 
       // @trigger('load', '*://google.com/*')
       async function googleLoad() {}
+
+      // @trigger('expander', '/6lp', '600000', '*://*/*')
+      async function expand6lp() {}
     `;
     const triggers = parseTriggers(code);
     expect(triggers).toEqual([
@@ -287,6 +290,13 @@ describe('parseTriggers', () => {
         type: 'load',
         urlPattern: '*://google.com/*',
         functionName: 'googleLoad'
+      },
+      {
+        type: 'expander',
+        triggerVal: '/6lp',
+        expansionText: '600000',
+        urlPattern: '*://*/*',
+        functionName: 'expand6lp'
       }
     ]);
   });
