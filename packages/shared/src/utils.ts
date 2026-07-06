@@ -144,6 +144,57 @@ function extractTriggerArgs(line: string): string | null {
   return null;
 }
 
+function splitArguments(argsRaw: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let inString: string | null = null;
+  let isEscaped = false;
+
+  for (let i = 0; i < argsRaw.length; i++) {
+    const char = argsRaw[i];
+    if (isEscaped) {
+      current += char;
+      isEscaped = false;
+      continue;
+    }
+    if (char === '\\') {
+      current += char;
+      isEscaped = true;
+      continue;
+    }
+    if (inString) {
+      if (char === inString) {
+        inString = null;
+      }
+      current += char;
+    } else {
+      if (char === "'" || char === '"' || char === '`') {
+        inString = char;
+        current += char;
+      } else if (char === ',') {
+        args.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+  }
+  if (current.trim()) {
+    args.push(current.trim());
+  }
+  return args;
+}
+
+function stripQuotes(arg: string): string {
+  const trimmed = arg.trim();
+  if ((trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith('`') && trimmed.endsWith('`'))) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
 /**
  * Parses @trigger('hotkey' | 'expander' | 'load', ...) annotations from the script
  */
@@ -178,12 +229,7 @@ export function parseTriggers(code: string): ParsedTrigger[] {
     if (isTriggerComment) {
       const argsRaw = extractTriggerArgs(line);
       if (argsRaw !== null) {
-        const args: string[] = [];
-        const argRegex = /(['"`])(.*?)\1/g;
-        let argMatch;
-        while ((argMatch = argRegex.exec(argsRaw)) !== null) {
-          args.push(argMatch[2]);
-        }
+        const args = splitArguments(argsRaw).map(stripQuotes);
         
         if (args.length > 0) {
           const type = args[0] as 'hotkey' | 'expander' | 'load';
