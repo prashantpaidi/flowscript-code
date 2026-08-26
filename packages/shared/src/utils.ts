@@ -64,10 +64,16 @@ export function matchUrlPattern(pattern: string, url: string): boolean {
     formattedPattern = `*://${formattedPattern}`;
   }
 
+  // Normalize URL: ensure domain-level URLs have trailing slash (e.g. https://example.com -> https://example.com/)
+  let targetUrl = url.trim();
+  if (/^[a-zA-Z]+:\/\/[^/]+$/.test(targetUrl)) {
+    targetUrl += '/';
+  }
+
   const regexString = '^' + formattedPattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
     .replace(/\*/g, '.*');               // Convert wildcards to regex .*
-  return new RegExp(regexString, 'i').test(url);
+  return new RegExp(regexString, 'i').test(targetUrl);
 }
 
 function urlPatternsOverlap(p1: string | undefined, p2: string | undefined): boolean {

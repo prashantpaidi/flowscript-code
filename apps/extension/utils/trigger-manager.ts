@@ -12,7 +12,7 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
 
   setup(executeCallback: (functionName: string) => void): void {
     this.executeCallback = executeCallback;
-    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keydown', this.handleKeyDown, true);
   }
 
   update(triggers: ParsedTrigger[]): void {
@@ -23,7 +23,7 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
   }
 
   destroy(): void {
-    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keydown', this.handleKeyDown, true);
     this.executeCallback = null;
   }
 
@@ -84,7 +84,11 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
       normalizedTargetKey = ' ';
     }
 
-    return event.key.toLowerCase() === normalizedTargetKey;
+    const eventKey = event.key ? event.key.toLowerCase() : '';
+    const eventCode = event.code ? event.code.toLowerCase() : '';
+    const cleanCode = eventCode.startsWith('key') ? eventCode.slice(3) : eventCode;
+
+    return eventKey === normalizedTargetKey || cleanCode === normalizedTargetKey || eventCode === normalizedTargetKey;
   }
 }
 
