@@ -181,3 +181,17 @@ Pauses the script execution flow for the specified duration.
   ```javascript
   await sleep(1500); // Sleep for 1.5 seconds
   ```
+
+### `loadScript(url)` / `importScript(url)`
+Dynamically fetches and executes an external JavaScript/FlowScript file inside the Sandbox context. Automatically applies command transformations and registers any `@trigger` annotations present in the external file.
+* **Parameters**:
+  * `url` (`string`): The remote or local URL of the JavaScript file (e.g., `http://localhost:3000/automation.js` or CDN link).
+* **Returns**: `Promise<any>`
+* **Example**:
+  ```javascript
+  // Load local file served via: npx serve -p 3000 --cors
+  await loadScript('http://localhost:3000/automation.js');
+  
+  // Or load external CDN helper library
+  await loadScript('https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js');
+  ```

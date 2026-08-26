@@ -119,6 +119,26 @@ updateDom('.card', 'style.color', 'blue');`}
 
       <Card>
         <CardHeader className="p-3.5 pb-2">
+          <CardTitle className="text-xs font-bold">Remote & Local Script Loading</CardTitle>
+          <CardDescription className="text-[10px]">
+            Dynamically load external scripts or sync local files from dev server (npx serve -p 3000 --cors).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-3.5 pt-0 flex flex-col gap-2.5 text-xs">
+          <div>
+            <p className="font-semibold text-[11px] text-foreground">loadScript(url) / importScript(url)</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Fetches, evaluates, and registers triggers from remote JS files.</p>
+            <code className="block bg-muted p-1 rounded font-mono text-[9px] mt-1 text-foreground leading-3.5 whitespace-pre">
+{`await loadScript('http://localhost:3000/automation.js');
+// or load external CDN library
+await loadScript('https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js');`}
+            </code>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="p-3.5 pb-2">
           <CardTitle className="text-xs font-bold">Full Flow Example</CardTitle>
           <CardDescription className="text-[10px]">
             Dynamic scraping and conditional automation:
