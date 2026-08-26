@@ -61,6 +61,7 @@ describe('loadScript Sandbox Helper', () => {
       }),
       '*'
     );
+    expect((globalThis as any).applyAndScrape1).toBeTypeOf('function');
   });
 
   it('should throw an error if fetch fails', async () => {

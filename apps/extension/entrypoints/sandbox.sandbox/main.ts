@@ -99,15 +99,23 @@ export async function loadScript(url: string): Promise<any> {
     const cleanCode = cleanScriptCode(rawCode);
     const autoAwaitedCode = autoAwaitCommands(cleanCode);
 
+    // Parse and notify sidepanel of any dynamic triggers inside the loaded script
+    const triggers = parseTriggers(rawCode);
+    const triggerFuncNames = Array.from(new Set(triggers.map(t => t.functionName)));
+    
+    const globalBindings = triggerFuncNames
+      .map(name => `if (typeof ${name} !== 'undefined') globalThis.${name} = ${name};`)
+      .join('\n');
+
     const scriptFunc = new Function(`
       return (async () => {
         ${autoAwaitedCode}
+        ${globalBindings}
       })();
     `);
     const result = await scriptFunc();
 
-    // Parse and notify sidepanel of any dynamic triggers inside the loaded script
-    const triggers = parseTriggers(rawCode);
+    // Notify sidepanel of any dynamic triggers inside the loaded script
     if (triggers.length > 0) {
       logToParent('log', `Found ${triggers.length} trigger(s) in external script.`);
       window.parent.postMessage({
@@ -252,7 +260,7 @@ window.addEventListener('message', async (event) => {
         lastCompiledCode = code;
       }
 
-      const targetFn = compiledFunctions[functionName];
+      const targetFn = compiledFunctions[functionName] || (globalThis as any)[functionName];
       if (typeof targetFn === 'function') {
         await targetFn();
       } else {
