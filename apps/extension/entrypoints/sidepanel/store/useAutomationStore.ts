@@ -245,9 +245,15 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => {
     const currentTriggers = get().triggers;
-    const newFuncNames = new Set(newTriggers.map((t) => t.functionName));
-    const staticTriggers = currentTriggers.filter((t) => !newFuncNames.has(t.functionName));
-    const merged = [...staticTriggers, ...newTriggers];
+    const merged = [...currentTriggers];
+    newTriggers.forEach((nt) => {
+      const exists = merged.some(
+        (t) => t.type === nt.type && t.functionName === nt.functionName && t.triggerVal === nt.triggerVal
+      );
+      if (!exists) {
+        merged.push(nt);
+      }
+    });
     set({ triggers: merged });
     debouncedSaveTriggers(merged);
   },
