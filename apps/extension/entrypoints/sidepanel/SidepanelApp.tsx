@@ -29,6 +29,7 @@ export default function SidepanelApp() {
   const setSelectedSelector = useAutomationStore((s) => s.setSelectedSelector);
   const setSelectingState = useAutomationStore((s) => s.setSelectingState);
   const recordAction = useAutomationStore((s) => s.recordAction);
+  const registerDynamicTriggers = useAutomationStore((s) => s.registerDynamicTriggers);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -55,12 +56,16 @@ export default function SidepanelApp() {
         await handleActionRequest(data.payload, iframeRef.current);
       } else if (data.type === MESSAGE_TYPES.EXECUTION_COMPLETE) {
         setExecutionComplete(data.payload);
+      } else if (data.type === MESSAGE_TYPES.REGISTER_DYNAMIC_TRIGGERS) {
+        if (data.payload?.triggers) {
+          registerDynamicTriggers(data.payload.triggers);
+        }
       }
     };
 
     window.addEventListener('message', handleSandboxMessage);
     return () => window.removeEventListener('message', handleSandboxMessage);
-  }, [addLog, handleActionRequest, setExecutionComplete]);
+  }, [addLog, handleActionRequest, setExecutionComplete, registerDynamicTriggers]);
 
   // Handle messages from content script for trigger invocations and DOM selector
   useEffect(() => {

@@ -88,6 +88,55 @@ const logToParent = (type: 'log' | 'error' | 'step', message: string) => {
   }, '*');
 };
 
+export async function loadScript(url: string): Promise<any> {
+  logToParent('log', `Fetching external script from: ${url}...`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    const rawCode = await response.text();
+    const cleanCode = cleanScriptCode(rawCode);
+    const autoAwaitedCode = autoAwaitCommands(cleanCode);
+
+    // Parse and notify sidepanel of any dynamic triggers inside the loaded script
+    const triggers = parseTriggers(rawCode);
+    const triggerFuncNames = Array.from(new Set(triggers.map(t => t.functionName)));
+    
+    const globalBindings = triggerFuncNames
+      .map(name => `if (typeof ${name} !== 'undefined') globalThis.${name} = ${name};`)
+      .join('\n');
+
+    const scriptFunc = new Function(`
+      return (async () => {
+        ${autoAwaitedCode}
+        ${globalBindings}
+      })();
+    `);
+    const result = await scriptFunc();
+
+    // Notify sidepanel of any dynamic triggers inside the loaded script
+    if (triggers.length > 0) {
+      logToParent('log', `Found ${triggers.length} trigger(s) in external script.`);
+      window.parent.postMessage({
+        source: 'sandbox',
+        type: MESSAGE_TYPES.REGISTER_DYNAMIC_TRIGGERS,
+        payload: { triggers }
+      }, '*');
+    }
+
+    logToParent('log', `Successfully loaded external script from: ${url}`);
+    return result;
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    logToParent('error', `Failed to load external script (${url}): ${msg}`);
+    throw err;
+  }
+}
+
+(globalThis as any).loadScript = loadScript;
+(globalThis as any).importScript = loadScript;
+
 const originalLog = console.log;
 const originalError = console.error;
 
@@ -211,7 +260,7 @@ window.addEventListener('message', async (event) => {
         lastCompiledCode = code;
       }
 
-      const targetFn = compiledFunctions[functionName];
+      const targetFn = compiledFunctions[functionName] || (globalThis as any)[functionName];
       if (typeof targetFn === 'function') {
         await targetFn();
       } else {

@@ -98,6 +98,7 @@ export interface AutomationState {
   stopSelectingElement: () => Promise<void>;
   setSelectedSelector: (selector: { primary: string; fallback: string } | null) => void;
   setSelectingState: (isSelecting: boolean) => void;
+  registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => void;
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   recordAction: (action: { type: 'click' | 'type'; selector: string; value?: string }) => void;
@@ -240,6 +241,21 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     } else {
       debouncedSaveTriggers([]);
     }
+  },
+
+  registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => {
+    const currentTriggers = get().triggers;
+    const merged = [...currentTriggers];
+    newTriggers.forEach((nt) => {
+      const exists = merged.some(
+        (t) => t.type === nt.type && t.functionName === nt.functionName && t.triggerVal === nt.triggerVal
+      );
+      if (!exists) {
+        merged.push(nt);
+      }
+    });
+    set({ triggers: merged });
+    debouncedSaveTriggers(merged);
   },
 
   createFile: (name: string, parentId: string | null) => {
