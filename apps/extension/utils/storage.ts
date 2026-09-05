@@ -109,9 +109,29 @@ export function watchTriggers(callback: (triggers: ParsedTrigger[] | null) => vo
   return triggersStorage.watch(callback);
 }
 
+const dynamicTriggersStorage = storage.defineItem<ParsedTrigger[]>('local:dynamic_triggers', {
+  defaultValue: [],
+});
+
+/**
+ * Gets triggers registered dynamically at runtime (e.g. via loadScript() in the sandbox).
+ */
+export async function getDynamicTriggers(): Promise<ParsedTrigger[]> {
+  const value = await dynamicTriggersStorage.getValue();
+  return value!;
+}
+
+/**
+ * Saves triggers registered dynamically at runtime (e.g. via loadScript() in the sandbox).
+ */
+export async function saveDynamicTriggers(triggers: ParsedTrigger[]): Promise<void> {
+  await dynamicTriggersStorage.setValue(triggers);
+}
+
 export interface PendingTrigger {
   functionName: string;
   tabId: number;
+  fileId?: string;
 }
 
 const pendingTriggerStorage = storage.defineItem<PendingTrigger | null>('session:pending_trigger', {

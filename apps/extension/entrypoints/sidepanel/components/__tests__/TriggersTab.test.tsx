@@ -72,7 +72,7 @@ describe('TriggersTab Component', () => {
     const playBtn = screen.getByTitle('Test Trigger Function');
     fireEvent.click(playBtn);
 
-    expect(runTriggerSpy).toHaveBeenCalledWith('openMenu', undefined, null);
+    expect(runTriggerSpy).toHaveBeenCalledWith('openMenu', undefined, null, undefined);
   });
 
   it('should render trigger validation error when present', () => {

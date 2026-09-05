@@ -1,6 +1,15 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
+import { ParsedTrigger } from '@flowscript/shared';
 import { useAutomationStore } from '../useAutomationStore';
+import {
+  saveFiles,
+  saveFileContent,
+  saveActiveFileId,
+  getSavedTriggers,
+  getDynamicTriggers,
+  FileNode,
+} from '@/utils/storage';
 
 // Mock automation-service APIs that use browser APIs
 vi.mock('@/utils/automation-service', () => ({
@@ -158,5 +167,128 @@ describe('useAutomationStore', () => {
 
     await store.stopRecording();
     expect(useAutomationStore.getState().isRecording).toBe(false);
+  });
+
+  describe('multi-flow triggers', () => {
+    const FILE_A: FileNode = { id: 'file-a', name: 'flow-a.ts', type: 'file', parentId: null };
+    const FILE_B: FileNode = { id: 'file-b', name: 'flow-b.ts', type: 'file', parentId: null };
+    const CODE_A = `// @trigger('hotkey', 'ctrl+shift+1')\nasync function flowA() {}\n`;
+    const CODE_B = `// @trigger('hotkey', 'ctrl+shift+2')\nasync function flowB() {}\n`;
+
+    const seedTwoFlows = async () => {
+      await saveFiles([FILE_A, FILE_B]);
+      await saveFileContent(FILE_A.id, CODE_A);
+      await saveFileContent(FILE_B.id, CODE_B);
+      await saveActiveFileId(FILE_A.id);
+    };
+
+    const fakeIframe = () => {
+      const postMessage = vi.fn();
+      return {
+        postMessage,
+        iframe: { contentWindow: { postMessage } } as unknown as HTMLIFrameElement,
+      };
+    };
+
+    it('keeps all flows in the global registry when switching between flows', async () => {
+      await seedTwoFlows();
+      await useAutomationStore.getState().initStore();
+
+      await vi.waitFor(
+        async () => {
+          const saved = await getSavedTriggers();
+          expect(saved.map((t) => t.functionName).sort()).toEqual(['flowA', 'flowB']);
+        },
+        { timeout: 3000, interval: 200 }
+      );
+
+      await useAutomationStore.getState().setActiveFileId('file-b');
+      expect(useAutomationStore.getState().activeFileId).toBe('file-b');
+
+      // Wait past the 1s rebuild debounce to prove the switch did not overwrite the registry
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      const afterSwitch = await getSavedTriggers();
+      expect(afterSwitch.map((t) => t.functionName).sort()).toEqual(['flowA', 'flowB']);
+    });
+
+    it('rebuilds the registry from all flows when the active flow is edited', async () => {
+      await seedTwoFlows();
+      await useAutomationStore.getState().initStore();
+
+      await vi.waitFor(
+        async () => {
+          expect(await getSavedTriggers()).toHaveLength(2);
+        },
+        { timeout: 3000, interval: 200 }
+      );
+
+      useAutomationStore.getState().setCode("// @trigger('hotkey', 'ctrl+shift+9')\nasync function flowA() {}\n");
+
+      await vi.waitFor(
+        async () => {
+          const saved = await getSavedTriggers();
+          expect(saved.map((t) => t.functionName).sort()).toEqual(['flowA', 'flowB']);
+          expect(saved.find((t) => t.functionName === 'flowA')?.triggerVal).toBe('ctrl+shift+9');
+        },
+        { timeout: 3000, interval: 250 }
+      );
+    });
+
+    it('executes the owning flow code when a trigger fires with a fileId', async () => {
+      await seedTwoFlows();
+      await useAutomationStore.getState().initStore();
+      await useAutomationStore.getState().setActiveFileId('file-b');
+      const { postMessage, iframe } = fakeIframe();
+
+      await useAutomationStore.getState().runTriggerFunction('flowA', 5, iframe, 'file-a');
+
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      const { type, payload } = postMessage.mock.calls[0][0];
+      expect(type).toBe('RUN_TRIGGER');
+      expect(payload.functionName).toBe('flowA');
+      expect(payload.code).toBe(CODE_A);
+    });
+
+    it('falls back to the active flow code when no fileId is provided', async () => {
+      await seedTwoFlows();
+      await useAutomationStore.getState().initStore();
+      const { postMessage, iframe } = fakeIframe();
+
+      await useAutomationStore.getState().runTriggerFunction('flowB', 5, iframe);
+
+      expect(postMessage).toHaveBeenCalledTimes(1);
+      const { payload } = postMessage.mock.calls[0][0];
+      expect(payload.functionName).toBe('flowB');
+      expect(payload.code).toBe(CODE_A);
+    });
+
+    it('replaces a dynamic trigger when the same function re-registers with a new hotkey', async () => {
+      const register = (hotkey: string) =>
+        useAutomationStore.getState().registerDynamicTriggers([
+          {
+            type: 'hotkey',
+            triggerVal: hotkey,
+            displayLabel: 'Ctrl + Shift + ' + hotkey.slice(-1).toUpperCase(),
+            functionName: 'dynFn',
+          } as ParsedTrigger,
+        ]);
+
+      register('ctrl+shift+1');
+      register('ctrl+shift+2');
+
+      const triggers = useAutomationStore.getState().triggers;
+      expect(triggers).toHaveLength(1);
+      expect(triggers[0].triggerVal).toBe('ctrl+shift+2');
+
+      await vi.waitFor(
+        async () => {
+          const dynamic = await getDynamicTriggers();
+          expect(dynamic).toHaveLength(1);
+          expect(dynamic[0].triggerVal).toBe('ctrl+shift+2');
+        },
+        { timeout: 3000, interval: 200 }
+      );
+    });
   });
 });

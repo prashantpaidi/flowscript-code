@@ -1,16 +1,16 @@
 import { ParsedTrigger, HotkeyTrigger, ExpanderTrigger, matchUrlPattern } from '@flowscript/shared';
 
 export interface TriggerStrategy {
-  setup(executeCallback: (functionName: string) => void): void;
+  setup(executeCallback: (trigger: ParsedTrigger) => void): void;
   update(triggers: ParsedTrigger[]): void;
   destroy(): void;
 }
 
 export class HotkeyTriggerStrategy implements TriggerStrategy {
   private activeHotkeys: HotkeyTrigger[] = [];
-  private executeCallback: ((functionName: string) => void) | null = null;
+  private executeCallback: ((trigger: ParsedTrigger) => void) | null = null;
 
-  setup(executeCallback: (functionName: string) => void): void {
+  setup(executeCallback: (trigger: ParsedTrigger) => void): void {
     this.executeCallback = executeCallback;
     window.addEventListener('keydown', this.handleKeyDown);
   }
@@ -46,7 +46,7 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
       if (this.matchHotkey(event, trigger.triggerVal)) {
         event.preventDefault();
         event.stopPropagation();
-        this.executeCallback?.(trigger.functionName);
+        this.executeCallback?.(trigger);
         break;
       }
     }
@@ -90,10 +90,10 @@ export class HotkeyTriggerStrategy implements TriggerStrategy {
 
 export class ExpanderTriggerStrategy implements TriggerStrategy {
   private activeExpanders: ExpanderTrigger[] = [];
-  private executeCallback: ((functionName: string) => void) | null = null;
+  private executeCallback: ((trigger: ParsedTrigger) => void) | null = null;
   private isExpanding = false;
 
-  setup(executeCallback: (functionName: string) => void): void {
+  setup(executeCallback: (trigger: ParsedTrigger) => void): void {
     this.executeCallback = executeCallback;
     window.addEventListener('input', this.handleInput);
   }
@@ -144,7 +144,7 @@ export class ExpanderTriggerStrategy implements TriggerStrategy {
             target.dispatchEvent(new Event('change', { bubbles: true }));
           }
 
-          this.executeCallback?.(trigger.functionName);
+          this.executeCallback?.(trigger);
         } finally {
           this.isExpanding = false;
         }
@@ -156,11 +156,11 @@ export class ExpanderTriggerStrategy implements TriggerStrategy {
 
 export class LoadTriggerStrategy implements TriggerStrategy {
   private activeLoadTriggers: ParsedTrigger[] = [];
-  private executeCallback: ((functionName: string) => void) | null = null;
+  private executeCallback: ((trigger: ParsedTrigger) => void) | null = null;
   private executedFunctions = new Set<string>();
   private lastUrl = '';
 
-  setup(executeCallback: (functionName: string) => void): void {
+  setup(executeCallback: (trigger: ParsedTrigger) => void): void {
     this.executeCallback = executeCallback;
     this.executedFunctions.clear();
     this.lastUrl = window.location.href;
@@ -194,7 +194,7 @@ export class LoadTriggerStrategy implements TriggerStrategy {
     for (const trigger of this.activeLoadTriggers) {
       if (!this.executedFunctions.has(trigger.functionName)) {
         this.executedFunctions.add(trigger.functionName);
-        this.executeCallback(trigger.functionName);
+        this.executeCallback(trigger);
       }
     }
   }
@@ -202,9 +202,9 @@ export class LoadTriggerStrategy implements TriggerStrategy {
 
 export class TriggerManager {
   private strategies: TriggerStrategy[] = [];
-  private onTriggerFired: (functionName: string) => void;
+  private onTriggerFired: (trigger: ParsedTrigger) => void;
 
-  constructor(onTriggerFired: (functionName: string) => void) {
+  constructor(onTriggerFired: (trigger: ParsedTrigger) => void) {
     this.onTriggerFired = onTriggerFired;
     this.strategies = [
       new HotkeyTriggerStrategy(),
@@ -214,8 +214,8 @@ export class TriggerManager {
   }
 
   setup(): void {
-    const callback = (functionName: string) => {
-      this.onTriggerFired(functionName);
+    const callback = (trigger: ParsedTrigger) => {
+      this.onTriggerFired(trigger);
     };
 
     for (const strategy of this.strategies) {
