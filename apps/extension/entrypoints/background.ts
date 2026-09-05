@@ -26,11 +26,11 @@ export default defineBackground(() => {
   // Listen for trigger invocation messages
   browser.runtime.onMessage.addListener((message, sender) => {
     if (message && message.source === 'content' && message.type === 'RUN_TRIGGER_FUNCTION') {
-      const { functionName } = message.payload;
+      const { functionName, fileId } = message.payload;
       const tabId = sender.tab?.id;
       
       if (!isSidepanelOpen && tabId) {
-        savePendingTrigger({ functionName, tabId }).catch((err) => {
+        savePendingTrigger({ functionName, tabId, fileId }).catch((err) => {
           console.error('Background: Failed to save pending trigger:', err);
         });
         browser.sidePanel.open({ tabId }).catch((error) => {

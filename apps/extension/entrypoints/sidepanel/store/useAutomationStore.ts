@@ -13,19 +13,25 @@ import {
   saveFileContent,
   deleteFileContent,
   getRecordingStatus,
-  saveRecordingStatus
+  saveRecordingStatus,
+  getDynamicTriggers,
+  saveDynamicTriggers
 } from '@/utils/storage';
+import { aggregateAllTriggers } from '@/utils/trigger-aggregator';
 import { executeActionOnTab, queryActiveTab } from '@/utils/automation-service';
 import { browser } from 'wxt/browser';
 
 let saveTriggersTimeout: any = null;
 
-const debouncedSaveTriggers = (triggers: ParsedTrigger[]) => {
+// Rebuilds the global trigger registry from ALL flows + dynamic triggers.
+const rebuildTriggers = () => {
   if (saveTriggersTimeout) clearTimeout(saveTriggersTimeout);
   saveTriggersTimeout = setTimeout(() => {
-    saveTriggers(triggers).catch((err) => {
-      console.error('Failed to save triggers to storage:', err);
-    });
+    aggregateAllTriggers()
+      .then((triggers) => saveTriggers(triggers))
+      .catch((err) => {
+        console.error('Failed to save triggers to storage:', err);
+      });
   }, 1000);
 };
 
@@ -93,7 +99,7 @@ export interface AutomationState {
   runScript: (iframeEl: HTMLIFrameElement | null) => Promise<void>;
   stopScript: (iframeEl: HTMLIFrameElement | null) => void;
   handleActionRequest: (payload: { id: number; action: any }, iframeEl: HTMLIFrameElement | null) => Promise<void>;
-  runTriggerFunction: (functionName: string, tabId: number | undefined, iframeEl: HTMLIFrameElement | null) => Promise<void>;
+  runTriggerFunction: (functionName: string, tabId: number | undefined, iframeEl: HTMLIFrameElement | null, fileId?: string) => Promise<void>;
   startSelectingElement: () => Promise<void>;
   stopSelectingElement: () => Promise<void>;
   setSelectedSelector: (selector: { primary: string; fallback: string } | null) => void;
@@ -166,8 +172,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
             isInitialized: true
           });
           saveActiveFileId(activeId).catch(console.error);
-          saveTriggers(valError ? [] : parsed).catch((err) => {
-            console.error('Failed to initialize triggers in storage:', err);
+          aggregateAllTriggers().then((allTriggers) => {
+            saveTriggers(allTriggers).catch((err) => {
+              console.error('Failed to initialize triggers in storage:', err);
+            });
+          }).catch((err) => {
+            console.error('Failed to aggregate triggers in storage:', err);
           });
         } else {
           set({ files: savedFiles, isRecording, isInitialized: true });
@@ -210,8 +220,12 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         saveFiles(initialFiles).catch(console.error);
         saveFileContent(defaultId, defaultCode).catch(console.error);
         saveActiveFileId(defaultId).catch(console.error);
-        saveTriggers(valError ? [] : parsed).catch((err) => {
-          console.error('Failed to initialize triggers in storage:', err);
+        aggregateAllTriggers().then((allTriggers) => {
+          saveTriggers(allTriggers).catch((err) => {
+            console.error('Failed to initialize triggers in storage:', err);
+          });
+        }).catch((err) => {
+          console.error('Failed to aggregate triggers in storage:', err);
         });
       }
     } catch (error) {
@@ -235,12 +249,32 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
     debouncedSaveFileContent(activeId, code);
     saveScript(code).catch(err => console.error('Failed to save legacy script:', err));
-    
-    if (!valError) {
-      debouncedSaveTriggers(parsed);
-    } else {
-      debouncedSaveTriggers([]);
-    }
+
+    rebuildTriggers();
+  },
+
+  registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => {
+    const applyMerged = (current: ParsedTrigger[]) => {
+      const merged = [...current];
+      newTriggers.forEach((nt) => {
+        const index = merged.findIndex((t) => t.type === nt.type && t.functionName === nt.functionName);
+        if (index >= 0) {
+          merged[index] = nt;
+        } else {
+          merged.push(nt);
+        }
+      });
+      return merged;
+    };
+
+    set({ triggers: applyMerged(get().triggers) });
+
+    getDynamicTriggers()
+      .then((dynamicTriggers) => saveDynamicTriggers(applyMerged(dynamicTriggers)))
+      .then(() => rebuildTriggers())
+      .catch((err) => {
+        console.error('Failed to register dynamic triggers:', err);
+      });
   },
 
   registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => {
@@ -277,11 +311,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     saveFiles(updatedFiles).catch(console.error);
     saveFileContent(id, defaultContent).catch(console.error);
     saveActiveFileId(id).catch(console.error);
-
-    const parsed = parseTriggers(defaultContent);
-    const valError = validateTriggers(parsed);
-    set({ triggers: parsed, validationError: valError });
-    debouncedSaveTriggers(parsed);
 
     return id;
   },
@@ -374,9 +403,10 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         saveFiles(finalFiles).catch(console.error);
         saveFileContent(defaultId, defaultCode).catch(console.error);
         saveActiveFileId(defaultId).catch(console.error);
-        debouncedSaveTriggers([]);
       }
     }
+
+    rebuildTriggers();
   },
 
   setActiveFileId: async (id: string) => {
@@ -405,12 +435,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       const parsed = parseTriggers(content);
       const valError = validateTriggers(parsed);
       set({ triggers: parsed, validationError: valError });
-
-      if (!valError) {
-        debouncedSaveTriggers(parsed);
-      } else {
-        debouncedSaveTriggers([]);
-      }
     } catch (err) {
       console.error('Failed to load file content on activation:', err);
     }
@@ -529,7 +553,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
   },
 
-  runTriggerFunction: async (functionName, tabId, iframeEl) => {
+  runTriggerFunction: async (functionName, tabId, iframeEl, fileId) => {
     if (get().isRunning) return;
 
     try {
@@ -549,9 +573,18 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       }
       set({ targetTabId: finalTabId });
 
+      let code = get().code;
+      if (fileId && fileId !== get().activeFileId) {
+        try {
+          code = await getFileContent(fileId);
+        } catch (err) {
+          console.error(`Failed to load code of file ${fileId} for trigger execution:`, err);
+        }
+      }
+
       iframeEl?.contentWindow?.postMessage({
         type: 'RUN_TRIGGER',
-        payload: { code: get().code, functionName }
+        payload: { code, functionName }
       }, '*');
     } catch (error: any) {
       set({

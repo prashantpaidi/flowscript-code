@@ -73,10 +73,10 @@ export default function SidepanelApp() {
       if (!message || message.source !== 'content') return;
 
       if (message.type === 'RUN_TRIGGER_FUNCTION') {
-        const { functionName } = message.payload;
+        const { functionName, fileId } = message.payload;
         const senderTabId = sender.tab?.id;
         if (senderTabId) {
-          runTriggerFunction(functionName, senderTabId, iframeRef.current);
+          runTriggerFunction(functionName, senderTabId, iframeRef.current, fileId);
         }
       } else if (message.type === MESSAGE_TYPES.DOM_ELEMENT_SELECTED) {
         setSelectedSelector(message.payload);
@@ -108,7 +108,7 @@ export default function SidepanelApp() {
         const pending = await getPendingTrigger();
         if (pending) {
           await savePendingTrigger(null);
-          runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current);
+          runTriggerFunction(pending.functionName, pending.tabId, iframeRef.current, pending.fileId);
         }
       };
       handlePending();

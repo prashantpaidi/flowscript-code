@@ -283,12 +283,12 @@ async function initTriggers() {
   }, 500);
 }
 
-async function executeTriggerFunction(functionName: string) {
-  console.log(`FlowScript: Firing trigger for function: ${functionName}()`);
+async function executeTriggerFunction(trigger: ParsedTrigger) {
+  console.log(`FlowScript: Firing trigger for function: ${trigger.functionName}()`);
   browser.runtime.sendMessage({
     source: 'content',
     type: 'RUN_TRIGGER_FUNCTION',
-    payload: { functionName }
+    payload: { functionName: trigger.functionName, fileId: trigger.fileId }
   }).catch((err) => {
     console.warn('FlowScript: Could not invoke trigger function. Is the sidepanel open?', err);
   });

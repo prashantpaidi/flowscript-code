@@ -19,6 +19,7 @@ export interface BaseTrigger {
   triggerVal?: string;      // e.g., 'ctrl+shift+k' or ';;tq'
   functionName: string;    // e.g., 'test'
   urlPattern?: string;      // optional url match constraint
+  fileId?: string;          // flow (file) that owns this trigger
 }
 
 export interface HotkeyTrigger extends BaseTrigger {

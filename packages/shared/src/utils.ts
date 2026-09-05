@@ -70,7 +70,7 @@ export function matchUrlPattern(pattern: string, url: string): boolean {
   return new RegExp(regexString, 'i').test(url);
 }
 
-function urlPatternsOverlap(p1: string | undefined, p2: string | undefined): boolean {
+export function urlPatternsOverlap(p1: string | undefined, p2: string | undefined): boolean {
   let pat1 = (p1 || '').trim() || '*';
   let pat2 = (p2 || '').trim() || '*';
   
