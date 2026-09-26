@@ -1,0 +1,36 @@
+{
+  "name": "@flowscript/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./drivers": {
+      "types": "./dist/drivers/index.d.ts",
+      "import": "./dist/drivers/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "compile": "tsc --noEmit",
+    "test": "vitest run",
+    "demo": "tsc && node examples/demo.js",
+    "demo:browser": "tsc && node examples/demo-real-browser.js",
+    "demo:live": "tsc && node examples/demo-attach-live.js"
+  },
+  "dependencies": {
+    "@flowscript/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@flowscript/tsconfig": "workspace:*",
+    "@types/node": "^26.6.3",
+    "playwright": "^1.63.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.8"
+  }
+}
