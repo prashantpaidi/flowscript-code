@@ -277,21 +277,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       });
   },
 
-  registerDynamicTriggers: (newTriggers: ParsedTrigger[]) => {
-    const currentTriggers = get().triggers;
-    const merged = [...currentTriggers];
-    newTriggers.forEach((nt) => {
-      const exists = merged.some(
-        (t) => t.type === nt.type && t.functionName === nt.functionName && t.triggerVal === nt.triggerVal
-      );
-      if (!exists) {
-        merged.push(nt);
-      }
-    });
-    set({ triggers: merged });
-    debouncedSaveTriggers(merged);
-  },
-
   createFile: (name: string, parentId: string | null) => {
     const id = Math.random().toString(36).substring(2, 11);
     const fileName = name.trim();
